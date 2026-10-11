@@ -15,6 +15,7 @@ from common.core.records import redact
 from common.core.config import ROOT
 from common.core.experiments import TASKS
 from common.core.learning_workspace import LearningWorkspace
+from common.core.runtime_diagnostics import failure_context
 
 RUN_ID = re.compile(r'^\d{8}T\d{6}-[a-f0-9]{8}$')
 SESSION_ID = re.compile(r'^[a-f0-9]{32}$')
@@ -62,6 +63,7 @@ class Session:
         return {'id': self.id, 'title': self.title, 'created_at': self.created_at,
                 'settings': self.settings, 'status': self.status, 'busy': self.busy,
                 'readonly': self.readonly, 'grade': (self.record or {}).get('grade'),
+                'awaiting_continue': self.runtime.awaiting_continue and not self.busy and not self.readonly,
                 'legacy': self.legacy,
                 'experiment': self.experiment.id if self.experiment else None}
 
@@ -79,7 +81,7 @@ class Session:
                   'code_file': (record or {}).get('code_file'),
                   'runner': (record or {}).get('runner'), 'source_version': (record or {}).get('source_version'),
                   'runs': [{'id': item['id'], 'title': short(next((m['text'] for m in messages_from(item)
-                            if m['role'] == 'user'), '运行记录'), 36)} for item in self.records],
+                            if m['role'] == 'user'), '继续下一步' if item.get('continuation') else '运行记录'), 36)} for item in self.records],
                   'initial_prompt': self.experiment.prompt if self.experiment else '',
                   'experiment_note': self.experiment.note if self.experiment else ''}
         return result
@@ -156,8 +158,15 @@ class SessionService:
             session.status = 'cancelled' if latest['status'] == 'running' else latest['status']
             session.trace = replay_records([*records[:-1], {**latest, 'status': session.status}])
             # A crash or failed turn may leave unmatched tool calls. Never resume those.
-            if latest['status'] in {'completed', 'limit'} and isinstance(latest.get('model_messages'), list):
+            recoverable = latest['status'] in {'completed', 'limit', 'waiting'} or (
+                latest['status'] == 'error' and latest.get('context_recovered') is True)
+            if recoverable and isinstance(latest.get('model_messages'), list):
                 session.runtime.state.messages = deepcopy(latest['model_messages'])
+                session.runtime.awaiting_continue = bool(latest.get('awaiting_continue') and
+                    session.runtime.state.messages and session.runtime.state.messages[-1].get('role') == 'tool')
+            if latest['status'] not in {'running', 'cancelled', 'timeout'}:
+                failed = next((record for record in reversed(records) if record['status'] == 'error'), None)
+                session.runtime.last_failure = failure_context(failed) if failed else None
             self.sessions[session.id] = session
 
     def publish(self):
@@ -202,11 +211,14 @@ class SessionService:
             raise ValueError('记录 ID 不一致。')
         return redact(record, self.config.api_key)
 
-    def start(self, session, text, *, llm_only=False):
+    def start(self, session, text, *, llm_only=False, continuation=False, expected_run_id=None):
         if session.readonly:
             raise ValueError('这是历史记录；请新建对话后运行。')
         if self.active_id is not None:
             raise ValueError('已有会话正在执行；请等待完成或先停止。')
+        if continuation and (not session.runtime.awaiting_continue or not session.record or
+                             session.record['id'] != expected_run_id):
+            raise ValueError('这一步已继续或没有待处理的工具结果，请刷新会话。')
         session.busy = True
         session.status = 'running'
         self.active_id = session.id
@@ -215,8 +227,9 @@ class SessionService:
         if not session.experiment:
             session.runtime.conversation = {'session_id': session.id, 'session_created_at': session.created_at,
                                             'session_title': session.title}
-        session.messages.append({'role': 'user', 'text': redact(text, self.config.api_key)})
-        session.trace.begin(redact(text, self.config.api_key))
+        if not continuation:
+            session.messages.append({'role': 'user', 'text': redact(text, self.config.api_key)})
+        session.trace.begin('继续下一步' if continuation else redact(text, self.config.api_key))
         config = self.config.copy(**{key: session.settings[key] for key in ('model', 'perception')})
         self.publish()
 
@@ -228,7 +241,8 @@ class SessionService:
 
         async def run():
             try:
-                await session.runtime.run(text, config, emit, session.settings['task_id'], llm_only=llm_only)
+                await session.runtime.run(text, config, emit, session.settings['task_id'],
+                                          llm_only=llm_only, continuation=continuation)
             except asyncio.CancelledError:
                 pass
             finally:

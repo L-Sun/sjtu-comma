@@ -22,7 +22,7 @@ function renderSessions(){
     if(ui.current?.id===s.id)button.setAttribute('aria-current','true');
     button.append(icon(s.experiment?'read':'chat'));
     const body=el('span','session-content');body.append(el('span','session-title',s.title));
-    const state=s.busy?'执行中':s.readonly?'已保存':({error:'出错',cancelled:'已停止',timeout:'超时',ready:'未开始',completed:'已完成'}[s.status]||'会话');
+    const state=s.busy?'执行中':s.readonly?'已保存':({error:'出错',cancelled:'已停止',timeout:'超时',ready:'未开始',completed:'已完成',waiting:'等待继续'}[s.status]||'会话');
     body.append(el('small','',`${s.experiment?'固定实验':(s.settings.model||'').split('/').pop()} · ${state}`));
     button.append(body);button.onclick=()=>openSession(s.id);return button;
   };
@@ -59,10 +59,20 @@ function renderExperiment(snapshot){
 }
 function resetViews(){ui.messageKey='';ui.attachmentKey='';ui.stepRows=[];$('messages').replaceChildren();$('steps').replaceChildren();$('attachments').replaceChildren();$('run-links').replaceChildren();$('run-history').hidden=true;}
 function newChat(preserve=false){disconnect();ui.current=null;renderExperiment(null);updateHint();stored('comma-session',null);resetViews();notice();if(!preserve)applySettings({model:ui.boot.default_model,perception:'vision',task_id:'free'});if(!ui.boot.models.includes($('model').value))$('model').value=ui.boot.default_model;$('prompt').value='';$('prompt').style.height='';$('chat-title').textContent='新对话';$('welcome').hidden=false;$('trace-current').textContent='等待开始';$('trace-stats').textContent='工具调用与结果将在这里实时显示';$('trace-empty').hidden=false;$('connection').textContent='本机服务已连接';$('export').removeAttribute('href');$('export').classList.add('disabled');ui.sidebarOpen=false;panels();renderSessions();controls();renderLearning();$('prompt').focus();}
-function controls(){const busy=!!ui.current?.busy, readonly=!!ui.current?.readonly, elsewhere=ui.activeId&&ui.activeId!==ui.current?.id;$('clear-history').disabled=ui.sending||!ui.sessions.some(session=>!session.experiment&&session.id!==ui.current?.id&&session.id!==ui.activeId);$('send').hidden=busy;$('stop').hidden=!busy;$('stop').disabled=ui.sending;$('send').disabled=readonly||ui.sending||elsewhere||!$('prompt').value.trim();$('check').disabled=busy||readonly||ui.sending||!!elsewhere;$('prompt').disabled=readonly||ui.sending;$('prompt').placeholder=elsewhere?'另一会话正在执行，请先等待完成…':'给模型一个任务…';$('readonly').hidden=!readonly;$('composer').hidden=readonly;$('reset-experiment').disabled=busy||ui.sending;for(const id of ['model','perception']){$(id).disabled=busy||ui.sending||!!(ui.current?.experiment&&ui.current.messages.length);$(id).title=ui.current?.experiment&&ui.current.messages.length?'重置实验后可更换设置':'';}$('status-dot').classList.toggle('busy',busy);}
+function controls(){const busy=!!ui.current?.busy, readonly=!!ui.current?.readonly, elsewhere=ui.activeId&&ui.activeId!==ui.current?.id;$('awaiting-step').hidden=!ui.current?.awaiting_continue||busy||readonly;$('continue-step').disabled=ui.sending||!!elsewhere;$('clear-history').disabled=ui.sending||!ui.sessions.some(session=>!session.experiment&&session.id!==ui.current?.id&&session.id!==ui.activeId);$('send').hidden=busy;$('stop').hidden=!busy;$('stop').disabled=ui.sending;$('send').disabled=readonly||ui.sending||elsewhere||!$('prompt').value.trim();$('check').disabled=busy||readonly||ui.sending||!!elsewhere;$('prompt').disabled=readonly||ui.sending;$('prompt').placeholder=elsewhere?'另一会话正在执行，请先等待完成…':ui.current?.awaiting_continue?'补充要求，或点击“继续下一步”…':'给模型一个任务…';$('readonly').hidden=!readonly;$('composer').hidden=readonly;$('reset-experiment').disabled=busy||ui.sending;for(const id of ['model','perception']){$(id).disabled=busy||ui.sending||!!(ui.current?.experiment&&ui.current.messages.length);$(id).title=ui.current?.experiment&&ui.current.messages.length?'重置实验后可更换设置':'';}$('status-dot').classList.toggle('busy',busy);}
 function messageContent(node,text){const blocks=String(text).split(/```[^\n]*\n([\s\S]*?)```/g);blocks.forEach((part,index)=>{if(index%2){const pre=el('pre');pre.append(el('code','',part));node.append(pre);}else node.append(document.createTextNode(part));});}
 function renderMessages(snapshot){const key=JSON.stringify([snapshot.messages,snapshot.busy]);if(key===ui.messageKey)return;ui.messageKey=key;const scroll=$('chat-scroll'),bottom=nearBottom(scroll);const fragment=document.createDocumentFragment();for(const message of snapshot.messages){const article=el('article',`message ${message.role}`);const label=el('div','message-label');if(message.role==='assistant')label.append(icon('agent'));label.append(document.createTextNode(message.role==='user'?'你':snapshot.settings.model.split('/').pop()));const body=el('div','message-content');messageContent(body,message.text);article.append(label,body);fragment.append(article);}if(snapshot.busy)fragment.append(el('div','pending-reply','正在执行，工具步骤会实时出现在右侧'));$('messages').replaceChildren(fragment);if(bottom)scroll.scrollTop=scroll.scrollHeight;}
-function renderSteps(trace){const scroll=$('trace-scroll'),bottom=nearBottom(scroll);trace.steps.forEach((step,i)=>{let row=ui.stepRows[i];if(!row){row=el('li','step');const symbol=el('span','step-icon'),body=el('div','step-body');body.append(el('div','step-title'),el('div','step-detail'),el('div','step-meta'));row.append(symbol,body);$('steps').append(row);ui.stepRows.push(row);}const key=JSON.stringify(step);if(row.dataset.state===key)return;row.dataset.state=key;row.className=`step ${step.status}`;const symbol=step.status==='error'?'close':step.status==='done'?'check':({list_files:'search',read_course_file:'read',check_agent:'check',edit_course_file:'edit',search_file:'search',read_file:'read',edit:'edit',bash:'command',get_window_state:'eye',click:'monitor'}[step.tool]||'think');row.firstChild.replaceChildren(icon(symbol));row.querySelector('.step-title').textContent=step.title;row.querySelector('.step-detail').textContent=step.detail;row.querySelector('.step-meta').textContent=[step.number?`#${step.number}`:'',step.repeat_of?`同 #${step.repeat_of} 参数 · 第 ${step.repeat_count} 次`:'',step.duration!=null?`${step.duration.toFixed(1)}s`:''].filter(Boolean).join(' · ');});$('trace-empty').hidden=trace.steps.length>0;if(bottom)scroll.scrollTop=scroll.scrollHeight;}
+function readableToolOutput(text){
+  try{
+    const data=JSON.parse(text);
+    if(data&&typeof data==='object'&&!Array.isArray(data)){
+      const field=typeof data.content==='string'?'content':typeof data.diff==='string'?'diff':null;
+      if(field){const body=data[field];delete data[field];return body+'\n\n'+JSON.stringify(data,null,2);}
+    }
+    return JSON.stringify(data,null,2);
+  }catch{return text;}
+}
+function renderSteps(trace){const scroll=$('trace-scroll'),bottom=nearBottom(scroll);trace.steps.forEach((step,i)=>{let row=ui.stepRows[i];if(!row){row=el('li','step');const symbol=el('span','step-icon'),body=el('div','step-body');body.append(el('div','step-title'),el('div','step-detail'),el('div','step-meta'));const output=el('details','tool-output');output.append(el('summary','','查看工具输出'),el('pre'));body.append(output);row.append(symbol,body);$('steps').append(row);ui.stepRows.push(row);}const key=JSON.stringify(step);if(row.dataset.state===key)return;row.dataset.state=key;row.className=`step ${step.status}`;const symbol=step.status==='error'?'close':step.status==='done'?'check':({list_files:'search',read_course_file:'read',check_agent:'check',edit_course_file:'edit',search_file:'search',read_file:'read',edit:'edit',bash:'command',get_window_state:'eye',click:'monitor'}[step.tool]||'think');row.firstChild.replaceChildren(icon(symbol));row.querySelector('.step-title').textContent=step.title;row.querySelector('.step-detail').textContent=step.detail;const output=row.querySelector('.tool-output');output.hidden=!step.output;output.querySelector('pre').textContent=readableToolOutput(step.output||'');row.querySelector('.step-meta').textContent=[step.number?`#${step.number}`:'',step.repeat_of?`同 #${step.repeat_of} 参数 · 第 ${step.repeat_count} 次`:'',step.duration!=null?`${step.duration.toFixed(1)}s`:''].filter(Boolean).join(' · ');});$('trace-empty').hidden=trace.steps.length>0;if(bottom)scroll.scrollTop=scroll.scrollHeight;}
 function renderRunLinks(snapshot){
   const runs=snapshot.runs||[];
   $('run-history').hidden=!runs.length;
@@ -116,10 +126,11 @@ function renderLearning(){
   const running=ui.current?.busy&&ui.current.runner;
   const active=running||progress.runner;
   $('learning-title').textContent=active==='student'?'我的 Agent':'教学 Chat';
+  $('learning-mode').textContent=active==='student'?'自动循环':'单步模式';
   $('learning-count').textContent=`Edit ${progress.edit?.ready?'已接入':`${progress.edit?.passed||0}/2`} · Loop ${progress.passed}/${progress.total}`;
   $('learning').classList.toggle('ready',active==='student');
   const transition=running&&running!==progress.runner;
-  $('learning-detail').textContent=transition?'本轮继续使用当前实现；下一轮根据最新检查结果切换。':progress.ready?'全部检查通过。下一条消息运行你保存的 agent.py，也可以让它调用工具检查自己。':progress.edit?.ready?'Edit 已接通。让 Chat 阅读、修改作业并检查，一起完成 Agent loop。':'先与 Chat 完成 tools.py 的工具声明和执行分发；接通 Edit 后再用它编辑 Agent loop。';
+  $('learning-detail').textContent=transition?'本轮继续使用当前实现；下一轮根据最新检查结果切换。':progress.ready?'全部检查通过。下一条消息运行你保存的 agent.py，也可以让它调用工具检查自己。':progress.edit?.ready?'Edit 已接通。每次只请求一次模型，工具返回后点击“继续下一步”。完成 Loop 后自动推进。':'先与 Chat 完成 tools.py 的工具声明和执行分发；工具返回后点击“继续下一步”，接通 Edit 后再一起写 Loop。';
   const allChecks=[...(progress.edit?.checks||[]),...progress.checks];
   $('learning-checks').replaceChildren(...(allChecks.length?allChecks.map(row=>el('li',row.status,`${row.status==='passed'?'✓':'○'} ${row.title}：${row.detail}`)):[el('li','',progress.detail)]));
   $('check-agent').disabled=checkingAgent;
@@ -133,10 +144,21 @@ async function refreshLearning(force=false){
   finally{checkingAgent=false;renderLearning();}
 }
 $('check-agent').onclick=()=>refreshLearning(true);
+$('continue-step').onclick=async()=>{
+  if(!ui.current?.awaiting_continue||$('continue-step').disabled)return;
+  const id=ui.current.id, runId=ui.current.run_id;
+  ui.sending=true;notice();controls();
+  try{
+    const snapshot=await api(`/api/sessions/${id}/continue`,{run_id:runId});
+    if(ui.current?.id===id){render(snapshot);connect(id);}
+    await refreshSessions();
+  }catch(error){notice(error.message);}
+  finally{ui.sending=false;controls();}
+};
 function learningWelcome(){
   if(!ui.boot.learning)return;
   document.querySelector('#welcome h1').textContent='和 Chat 一起，写出你的 Agent。';
-  document.querySelector('#welcome > p').textContent='先一起接入 Edit → 用 Chat 编辑作业 → 完成 Agent loop → 由你的 Agent 接手。';
+  document.querySelector('#welcome > p').textContent='先接入 Edit，手动推进读写步骤；再完成 Agent loop，让你的 Agent 自动推进。';
   const prompts=[['search','列出课程文件','从目录开始认识项目','请先列出课程根目录和 lesson_01_agent 中的文件，告诉我第一课要改哪个文件。'],['edit','先接入 Edit 工具','声明工具，连接执行','请先读取 lesson_01_agent/tools.py 和 README，和我一起完成 Edit 的工具声明与执行分发。先讲解，再给我这次需要手动粘贴的接入代码，保存后帮我检查。'],['check','检查我的 Agent','看看下一步该做什么','请调用 check_agent 检查 Edit 接入与 Agent loop 的进度，解释下一步；如果 Edit 已接通，我们一起用它编辑当前的待完成函数。']];
   document.querySelector('.suggestions').replaceChildren(...prompts.map(([symbol,title,detail,prompt])=>{const button=el('button');button.type='button';button.append(icon(symbol),el('strong','',title),el('span','',detail));button.onclick=()=>{if(ui.current)newChat(true);$('prompt').value=prompt;updateHint();controls();$('prompt').focus();};return button;}));
   renderLearning();

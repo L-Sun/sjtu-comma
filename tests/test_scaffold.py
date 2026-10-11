@@ -9,7 +9,7 @@ from common.app.server import create_app
 from common.core.config import Config
 from common.core.records import redact
 from common.core.experiments import grade
-from tests.test_learning_chat import course
+from tests.test_learning_chat import course, continue_step
 from tests.support.model_io import fake_runtime_io
 
 
@@ -39,10 +39,13 @@ async def finish(app, client, sid, text='请展示这个流程', **kwargs):
 
 
 @pytest.mark.parametrize('lesson', [1, 2])
-async def test_agent_full_http_flow(lesson, tmp_path):
-    async with client_for(tmp_path, lesson=lesson) as (app, client):
+async def test_agent_full_http_flow(lesson, tmp_path, course):
+    async with client_for(tmp_path, lesson=lesson, lesson_root=course) as (app, client):
         sid = await create(client)
         result = await finish(app, client, sid)
+        if lesson == 1:
+            assert result['status'] == 'waiting'
+            result = await continue_step(app, client, result)
         assert result['status'] == 'completed' and result['grade']['status'] == 'manual'
         assert [m['role'] for m in result['messages']] == ['user', 'assistant']
         record = (await client.get(f"/api/runs/{result['run_id']}/export")).json()
@@ -51,6 +54,8 @@ async def test_agent_full_http_flow(lesson, tmp_path):
         for image in result['images']:
             assert (await client.get(image['url'])).status_code == 200
         result = await finish(app, client, sid, '再来一次')
+        if lesson == 1:
+            result = await continue_step(app, client, result)
         assert len(result['messages']) == 4
         fresh = await create(client)
         assert not (await client.get(f'/api/sessions/{fresh}')).json()['messages']

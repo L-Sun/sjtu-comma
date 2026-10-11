@@ -10,13 +10,19 @@
 
 第一项练习不是写完整 Loop，而是把 **Edit 工具接进教学 Chat**。从这一步开始，学生与 Chat 一起获得后续会反复使用的编辑能力。
 
+教学 Chat 是**单步执行器**：每次发送消息或点击“继续下一步”，只请求一次模型，执行这次回复提出的工具后暂停。工具输出保存在历史中，可在执行过程中展开“查看工具输出”；此时模型还没读到这些结果。点击继续才会携带结果发起下一次请求，也可以直接发送补充要求。
+
+例如：读取文件 → 点击继续 → 修改文件 → 点击继续 → 检查或解释结果。继续按钮不会发送一条虚构的用户消息，也不会清空输入框草稿。普通会话的等待状态在刷新和重启后保留。
+
+Edit 接通让你能**修改文件**；完成 `run_turn()` 后，顶部切换为**自动循环**，自己的 Agent 会自动处理工具结果并推进下一步，直到模型回答或达到上限。
+
 在项目根目录启动：
 
 ```bash
 uv run mini-agent --lesson 1 --open
 ```
 
-在左下角设置 Base URL、API Key 和模型。初始显示 **教学 Chat · Edit 0/2 · Loop 0/5**。现在只能使用三个工具：
+在左下角设置 Base URL、API Key 和模型。初始显示 **教学 Chat · 单步模式 · Edit 0/2 · Loop 0/5**。现在只能使用三个工具：
 
 | 工具 | 用途 |
 | --- | --- |
@@ -64,7 +70,7 @@ uv run python -m lesson_01_agent.check_edit
 
 本课编辑工具可以修改 `lesson_01_agent/agent.py` 和 `lesson_01_agent/tools.py`。检查器、公共框架和配置文件不属于作业编辑范围。后续 A5 仍使用独立的长文件练习副本，比较模型编辑能力。
 
-保存 `tools.py` 或 `agent.py` 后**不需要重启服务**。检查与加载使用同一已保存版本；当前回合不切换 Agent loop。如果 Edit 接入被改坏，工具会在下一轮撤下，教学 Chat 仍能读文件、讲解并帮助你手动修复接入。普通对话使用真实模型接口；离线检查本身不产生 API 费用。
+保存 `tools.py` 或 `agent.py` 后**不需要重启服务**。检查与加载使用同一已保存版本；当前单步或自动循环执行中不切换实现。如果 Edit 接入被改坏，工具会在下一轮撤下，教学 Chat 仍能读文件、讲解并帮助你手动修复接入。普通对话使用真实模型接口；离线检查本身不产生 API 费用。
 
 ## 1. 先看一个完整例子
 
@@ -281,10 +287,11 @@ uv run python -m lesson_01_agent.check 4
 messages = state.messages
 if not messages:
     messages.append({"role": "system", "content": context.system_prompt})
-messages.append({"role": "user", "content": user_text})
+if user_text is not None:
+    messages.append({"role": "user", "content": user_text})
 ```
 
-它复用当前会话的历史，首次加入 system，每轮只追加一次用户输入。把后面的循环接在这里，不能清空历史或在每次模型请求前重复追加输入。完成循环后，`check chat` 会验证连续两轮消息。
+它复用当前会话的历史，首次加入 system，有新输入时只追加一次用户消息。点击“继续下一步”时 `user_text` 为 `None`，直接处理已有工具结果；这个分支已经提供。把后面的循环接在这里，不能清空历史或在每次模型请求前重复追加输入。完成循环后，`check chat` 会验证连续两轮消息。
 
 #### 围绕工具调用，实现一个完整循环
 

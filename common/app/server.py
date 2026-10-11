@@ -222,6 +222,22 @@ async def stop(request):
     return JSONResponse(service.snapshot(session))
 
 
+async def continue_step(request):
+    service, session = request.app.state.service, session_for(request)
+    data = await payload(request)
+    try:
+        validate(data, {'type': 'object', 'properties': {
+            'run_id': {'type': 'string', 'pattern': r'^\d{8}T\d{6}-[a-f0-9]{8}$'}},
+            'required': ['run_id'], 'additionalProperties': False})
+    except ValidationError:
+        raise HTTPException(400, '请从当前会话继续下一步。')
+    try:
+        service.start(session, None, continuation=True, expected_run_id=data['run_id'])
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+    return JSONResponse(service.snapshot(session), status_code=202)
+
+
 async def clear_history(request):
     service = request.app.state.service
     data = await payload(request)
@@ -338,6 +354,7 @@ def create_app(config=None, *, root=None, env_path=None, lesson_root=None):
         Route('/api/sessions/clear-history', clear_history, methods=['POST']),
         Route('/api/sessions/{session_id}', session_snapshot),
         Route('/api/sessions/{session_id}/messages', message, methods=['POST']),
+        Route('/api/sessions/{session_id}/continue', continue_step, methods=['POST']),
         Route('/api/sessions/{session_id}/stop', stop, methods=['POST']),
         Route('/api/sessions/{session_id}/reset', reset_experiment, methods=['POST']),
         Route('/api/sessions/{session_id}/settings', experiment_settings, methods=['POST']),

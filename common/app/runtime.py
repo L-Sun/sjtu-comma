@@ -1,12 +1,15 @@
 from __future__ import annotations
 import asyncio
+from copy import deepcopy
 from contextlib import asynccontextmanager, AsyncExitStack
 import importlib
 import json
 import time
 
 from jsonschema import validate
-from common.core.types import AgentState, Event, RunContext, ToolResult
+from common.core.types import AgentState, Event, ExercisePending, RunContext, ToolResult
+from common.core.event_contract import validate_event
+from common.core.runtime_diagnostics import append_failure, failure_context
 from common.core.basic_tools import basic_tools, execute_basic
 from common.core.config import ROOT
 from common.core.shell_tools import ShellRunner
@@ -34,6 +37,8 @@ class Runtime:
     def __init__(self, *, root=None, lesson=2, learning=None):
         self.lesson = lesson
         self.state = AgentState()
+        self.awaiting_continue = False
+        self.last_failure = None
         self.last_record = None
         self.experiment_id = None
         self.conversation = None
@@ -42,6 +47,8 @@ class Runtime:
 
     def reset(self):
         self.state = AgentState()
+        self.awaiting_continue = False
+        self.last_failure = None
 
     def module(self, name):
         if name == "llm":
@@ -100,7 +107,7 @@ class Runtime:
                 return filter_result(name, raw, config.perception)
             yield [*local_tools, *tools], execute
 
-    async def run(self, text, config, emit, task_id="free", *, llm_only=False):
+    async def run(self, text, config, emit, task_id="free", *, llm_only=False, continuation=False):
         config = config.copy(lesson=self.lesson)
         record = Record(config, task_id, **({"root": self.root} if self.root else {}))
         record.data["lesson"] = self.lesson
@@ -110,10 +117,19 @@ class Runtime:
             record.data.update(self.conversation)
         self.last_record = record
         editor = None
-        record.add("user", {"text": text})
+        checkpoint = deepcopy(self.state.messages)
+        prompt = SYSTEM
+        tool_outcomes = []
+        record.data['continuation'] = continuation
+        record.add('continue' if continuation else 'user', {'text': '继续下一步' if continuation else text})
+        if not llm_only:
+            self.awaiting_continue = False
         started = time.monotonic()
 
         def report(event):
+            validate_event(event)
+            if event.kind == 'status' and event.data.get('awaiting_continue'):
+                self.awaiting_continue = True
             if event.kind == "usage" and "request_parameters" in event.data:
                 record.data["request_parameters"] = event.data["request_parameters"]
                 record.data["temperature"] = event.data["request_parameters"].get("temperature")
@@ -135,7 +151,7 @@ class Runtime:
                     agent = learning_chat if teaching else self.learning.student_agent()
                     record.data['runner'] = progress['runner']
                     record.data['source_version'] = progress['version']
-                    label = '教学 Chat' if teaching else '我的 Agent · 已加载保存的 agent.py'
+                    label = '教学 Chat · 单步模式' if teaching else '我的 Agent · 自动循环'
                     report(Event('status', {'text': label, 'runner': progress['runner']}))
                 if task_id == "code-edit" and not teaching and not llm_only:
                     self.reset()
@@ -155,12 +171,21 @@ class Runtime:
 
                         async def execute(name, arguments):
                             if name not in lookup:
-                                return ToolResult("工具未开放，不能调用。", is_error=True)
-                            try:
-                                validate(arguments, lookup[name].parameters)
-                            except Exception:
-                                return ToolResult("参数不符合工具 JSON Schema，请检查参数与观察模式。", is_error=True)
-                            result = await executor(name, arguments)
+                                result = ToolResult("工具未开放，不能调用。", is_error=True)
+                            else:
+                                try:
+                                    validate(arguments, lookup[name].parameters)
+                                except Exception:
+                                    result = ToolResult("参数不符合工具 JSON Schema，请检查参数与观察模式。", is_error=True)
+                                else:
+                                    try:
+                                        result = await executor(name, arguments)
+                                    except (ExercisePending, asyncio.CancelledError):
+                                        raise
+                                    except Exception as exc:
+                                        result = ToolResult(f'{type(exc).__name__}: {exc}', is_error=True)
+                            tool_outcomes.append({'name': name, 'is_error': result.is_error,
+                                                  'text': redact(result.text, config.api_key)[:2000]})
                             return ToolResult(redact(result.text, config.api_key), result.images, result.is_error)
 
                         prompt = learning_chat.SYSTEM if teaching else SYSTEM + f"\n本次观察模式：{config.perception}。"
@@ -168,11 +193,16 @@ class Runtime:
                             prompt += "\n" + learning_chat.STUDENT_SYSTEM
                         if self.state.messages and self.state.messages[0].get('role') == 'system':
                             self.state.messages[0]['content'] = prompt
+                        if self.last_failure:
+                            if not self.state.messages:
+                                self.state.messages.append({'role': 'system', 'content': prompt})
+                            append_failure(self.state.messages, self.last_failure)
+                        checkpoint = deepcopy(self.state.messages)
                         context = RunContext(config, tools, self.module("llm").complete, execute, report, prompt)
-                        await (agent or self.module("agent")).run_turn(text, self.state, context)
+                        await (agent or self.module("agent")).run_turn(None if continuation else text, self.state, context)
                 if editor is not None:
                     record.data["code_grade"] = await editor.grade()
-            record.data["status"] = "completed"
+            record.data["status"] = "waiting" if self.awaiting_continue else "completed"
         except asyncio.CancelledError:
             # A cancelled batch may have incomplete tool_call pairs. A clean history is required.
             self.reset()
@@ -184,13 +214,25 @@ class Runtime:
             record.data["status"] = "timeout"
             report(Event("error", {"text": "本轮超时，已停止后续请求并清空模型历史。"}))
         except Exception as exc:
-            self.reset()
             record.data["status"] = "error"
             # Unwrap TaskGroup exceptions to show the actionable checkpoint.
             while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
                 exc = exc.exceptions[0]
-            report(Event("error", {"text": str(exc)}))
+            diagnostic = failure_context(record.data, error=f'{type(exc).__name__}: {exc}',
+                                         exception=exc, outcomes=tool_outcomes, secret=config.api_key)
+            self.reset()
+            # Discard this turn's incomplete tool-call pairs; retain the last valid history
+            # and actual user input, then add bounded diagnostic data for the next request.
+            self.state.messages = checkpoint or [{'role': 'system', 'content': prompt}]
+            if not continuation:
+                self.state.messages.append({'role': 'user', 'content': text})
+            self.last_failure = diagnostic
+            append_failure(self.state.messages, diagnostic)
+            record.data['error_context'] = diagnostic
+            record.data['context_recovered'] = True
+            report(Event("error", {"text": diagnostic['error'] + '\n错误详情已保留，下一条消息可继续诊断。'}))
         finally:
+            record.data['awaiting_continue'] = self.awaiting_continue
             record.data["elapsed_seconds"] = round(time.monotonic() - started, 3)
             events = record.data["events"]
             answers = [e["data"]["text"] for e in events if e["kind"] == "assistant"]

@@ -11,7 +11,7 @@ from common.core.config import ROOT, Config
 from common.core.course_editor import CourseEditor, version
 from common.core.learning_workspace import LearningWorkspace
 from common.core.types import ModelReply
-from tests.test_learning_chat import course, tool_reply
+from tests.test_learning_chat import course, tool_reply, continue_step
 
 
 # Test-only student solution; never copied into the actual course workspace.
@@ -162,26 +162,41 @@ async def test_chat_uses_connected_edit_to_complete_loop_then_student_takes_over
                 assert (await client.post(f'/api/sessions/{sid}/messages', json={'text': text})).status_code == 202
                 await asyncio.wait_for(app.state.service.get(sid).task, 15)
                 session = (await client.get(f'/api/sessions/{sid}')).json()
-                assert session['status'] == 'completed'
+                assert session['status'] in {'completed', 'waiting'}
                 record = (await client.get(f"/api/runs/{session['run_id']}/export")).json()
                 return session, record
             initial, _ = await turn('先一起接入 Edit')
             assert initial['runner'] == 'teaching_chat' and 'edit_course_file' not in requests[0]
             # The student's sole manual bootstrap step happens in this temporary course.
             (course / 'lesson_01_agent/tools.py').write_text(CONNECTED)
-            first, first_record = await turn('使用我们接好的 Edit，完成第一个辅助函数')
+            first, _ = await turn('使用我们接好的 Edit，完成第一个辅助函数')
             assert first['runner'] == 'teaching_chat' and 'edit_course_file' in requests[1]
+            assert step == 2 and first['awaiting_continue']
+            assert (course / TARGET).read_text() == original  # only read on this click
+            edited = await continue_step(app, client, first)
+            assert step == 3 and edited['awaiting_continue']
             assert (course / TARGET).read_text() == partial
-            first_results = [json.loads(e['data']['result']['text']) for e in first_record['events'] if e['kind'] == 'tool_end']
-            assert first_results[1]['saved'] and first_results[1]['diff']
-            assert first_results[2]['passed'] == 1 and first_results[2]['edit']['ready']
+            record = (await client.get(f"/api/runs/{edited['run_id']}/export")).json()
+            result = next(json.loads(e['data']['result']['text']) for e in record['events'] if e['kind'] == 'tool_end')
+            assert result['saved'] and result['diff']
+            checked = await continue_step(app, client, edited)
+            assert step == 4 and checked['awaiting_continue']
+            record = (await client.get(f"/api/runs/{checked['run_id']}/export")).json()
+            result = next(json.loads(e['data']['result']['text']) for e in record['events'] if e['kind'] == 'tool_end')
+            assert result['passed'] == 1 and result['edit']['ready']
+            answered = await continue_step(app, client, checked)
+            assert step == 5 and answered['status'] == 'completed'
             last, _ = await turn('按讨论结果完成其余函数与 Loop')
-            assert last['runner'] == 'teaching_chat'  # no switch halfway through a turn
+            assert step == 6 and (course / TARGET).read_text() == partial
+            last = await continue_step(app, client, last)
+            assert step == 7 and last['runner'] == 'teaching_chat'  # no switch halfway through a step
             assert (course / TARGET).read_text() == solution
             ready = (await client.post('/api/learning/check', json={})).json()
             assert ready['ready'] and ready['passed'] == 5 and ready['edit']['ready']
+            resumed = await continue_step(app, client, last)
+            assert step == 9 and resumed['runner'] == 'student' and not resumed['awaiting_continue']
             student, record = await turn('由刚写好的 Loop 检查自己')
-            assert student['runner'] == 'student' and student['source_version'] == ready['version']
+            assert step == 11 and student['runner'] == 'student' and student['source_version'] == ready['version']
             assert 'edit_course_file' in requests[9]
             assert any(e['data'].get('text') == 'EDIT_BUILT_THIS_LOOP' for e in record['events'])
             assert len(list((course / '.course-edits').glob('*.py'))) == 2

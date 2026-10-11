@@ -14,11 +14,16 @@ from pathlib import Path
 import sys
 
 from common.core.student_loader import load_student_agent
+from common.core.event_contract import validate_event
 
 
 def context_for(complete=None, execute=None, events=None):
+    def emit(event):
+        validate_event(event)
+        if events is not None:
+            events.append(event)
     return RunContext(Config(lesson=1, max_rounds=4), [], complete, execute,
-                      events.append if events is not None else lambda event: None,
+                      emit,
                       "你是课堂助手")
 
 
@@ -86,6 +91,14 @@ async def check_chat(module):
     assert snapshots[-1][1]["content"] == "第一句话", "第一轮输入丢失了。"
     assert snapshots[-1][-1] == {"role": "user", "content": "第二句话"}, "每轮应追加当前用户输入。"
     assert len([e for e in events if e.kind == "assistant"]) == 2, "每个回合的回复都应显示在界面。"
+    # A saved single step may hand its tool results to the completed student loop.
+    state.messages.extend([
+        {"role": "assistant", "content": None, "tool_calls": [tool_call()]},
+        {"role": "tool", "tool_call_id": "call-1", "content": '{"text":"42","is_error":false}'},
+    ])
+    before_continue = deepcopy(state.messages)
+    await module.run_turn(None, state, context)
+    assert snapshots[-1] == before_continue, "继续已有工具结果时，不追加新的 user 消息；保留已提供的消息准备代码。"
 
 
 async def check_tool_roundtrip(module):

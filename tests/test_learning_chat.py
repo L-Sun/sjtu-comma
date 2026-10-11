@@ -68,6 +68,13 @@ def tool_reply(name, args, call_id):
         {'id': call_id, 'type': 'function', 'function': {'name': name, 'arguments': json.dumps(args)}}]})
 
 
+async def continue_step(app, client, snapshot):
+    response = await client.post(f"/api/sessions/{snapshot['id']}/continue", json={'run_id': snapshot['run_id']})
+    assert response.status_code == 202, response.text
+    await asyncio.wait_for(app.state.service.get(snapshot['id']).task, 15)
+    return (await client.get(f"/api/sessions/{snapshot['id']}")).json()
+
+
 async def test_tutor_reads_then_real_student_loop_checks_itself(course, monkeypatch):
     replies = iter([
         tool_reply('list_files', {'path': 'lesson_01_agent'}, 'list'),
@@ -94,7 +101,13 @@ async def test_tutor_reads_then_real_student_loop_checks_itself(course, monkeypa
                 await asyncio.wait_for(app.state.service.get(sid).task, 10)
                 return (await client.get(f'/api/sessions/{sid}')).json()
             first = await turn('请列文件、读代码')
-            assert first['status'] == 'completed' and first['runner'] == 'teaching_chat'
+            assert first['status'] == 'waiting' and first['runner'] == 'teaching_chat'
+            assert len(requests) == 1 and first['trace']['calls'] == 1
+            first = await continue_step(app, client, first)
+            assert len(requests) == 2 and first['awaiting_continue']
+            first = await continue_step(app, client, first)
+            assert len(requests) == 3 and first['status'] == 'completed'
+            assert not first['awaiting_continue']
             assert requests[0][1] == {'list_files', 'read_course_file', 'check_agent'}
             assert first['trace']['calls'] == 2
             # Four filled helpers must still leave the actual run_turn as student work.

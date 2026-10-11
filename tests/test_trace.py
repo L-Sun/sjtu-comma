@@ -29,7 +29,7 @@ def test_live_step_updates_and_repeats_keep_order():
     start(state, 'c')
     assert state.steps[-1].repeat_of == 1
     assert state.steps[-1].repeat_count == 2
-    assert 'hidden-hash' not in str(state.public())
+    assert 'hidden-hash' not in str([(s.title, s.detail) for s in state.steps])
 
 
 def test_failed_edit_never_claims_write_and_finish_is_not_success():
@@ -65,12 +65,14 @@ def test_unverified_computer_action_is_not_success():
     assert result_summary('get_window_state', ToolResult('{"observation_warning":"missing"}'))[0] == 'warning'
 
 
-def test_public_summary_contains_no_raw_source_or_hash():
+def test_summary_stays_concise_and_expandable_output_preserves_result():
     state = TraceState()
     start(state)
     assert state.public()['steps'][-1]['status'] == 'running'
     end(state, result=ToolResult('{"matches":[{"line":1700,"context":"raw-source"}],"version":"hidden-hash"}'))
     result = state.public()
     assert result['calls'] == 1 and result['steps'][-1]['status'] == 'done'
-    assert 'raw-source' not in str(result) and 'hidden-hash' not in str(result)
+    step = result['steps'][-1]
+    assert 'raw-source' not in step['detail'] and 'hidden-hash' not in step['detail']
+    assert 'raw-source' in step['output'] and 'hidden-hash' in step['output']
     assert 'started' not in result['steps'][-1]

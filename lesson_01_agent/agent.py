@@ -58,7 +58,7 @@ def make_tool_message(call_id: str, result: ToolResult) -> dict:
 # ── 第 5 步：与 Chat 一起实现 Agent loop，不要跳过这一部分 ─────────
 
 
-async def run_turn(user_text: str, state: AgentState, context: RunContext) -> None:
+async def run_turn(user_text: str | None, state: AgentState, context: RunContext) -> None:
     """TODO 1.5：用上面的四个函数，自己搭起“模型 → 工具 → 模型”的循环。
 
     函数接口固定，循环体由你和教学 Chat 一起完成。直接围绕工具循环来写：
@@ -84,7 +84,9 @@ async def run_turn(user_text: str, state: AgentState, context: RunContext) -> No
     messages = state.messages
     if not messages:
         messages.append({"role": "system", "content": context.system_prompt})
-    messages.append({"role": "user", "content": user_text})
+    # 点击“继续下一步”时没有新输入，只处理已有的工具结果。
+    if user_text is not None:
+        messages.append({"role": "user", "content": user_text})
 
     # 从这里开始实现循环，保留上面的消息准备代码。
     raise ExercisePending("TODO 1.5 · 和 Chat 一起实现 run_turn：模型 → 工具 → 模型。")

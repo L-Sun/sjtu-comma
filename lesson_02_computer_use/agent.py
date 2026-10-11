@@ -64,12 +64,14 @@ def make_tool_message(call_id: str, result: ToolResult) -> dict:
 # ── 已提供的流程：先读懂调用关系，本课不需要修改下面的代码 ───────────
 
 
-async def run_turn(user_text: str, state: AgentState, context: RunContext) -> None:
+async def run_turn(user_text: str | None, state: AgentState, context: RunContext) -> None:
     """处理用户的一条消息：问模型 → 执行工具 → 再问模型，直到回答或达到上限。"""
     messages = state.messages
     if not messages:
         messages.append({"role": "system", "content": context.system_prompt})
-    messages.append({"role": "user", "content": user_text})
+    # 点击“继续下一步”时没有新输入，只处理已有的工具结果。
+    if user_text is not None:
+        messages.append({"role": "user", "content": user_text})
 
     for step in range(context.config.max_rounds):
         context.emit(Event("status", {"text": f"模型请求 {step + 1}/{context.config.max_rounds}"}))

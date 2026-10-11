@@ -7,6 +7,7 @@ import time
 
 from common.core.records import redact
 from common.core.types import Event, ToolResult
+from common.core.event_contract import EventContractError, validate_event
 
 
 def short(value, limit=100):
@@ -148,6 +149,7 @@ class Step:
     duration: float | None = None
 
     tool: str = ''
+    output: str = ''
 
     def public(self):
         data = asdict(self)
@@ -192,6 +194,9 @@ class TraceState:
             index, name = found
             step = self.steps[index]
             step.status, step.detail = result_summary(name, data['result'])
+            result = data['result']
+            output = result.text if isinstance(result, ToolResult) else result.get('text', '')
+            step.output = output[:65536] + ('\n（显示已截断，完整结果请导出运行记录。）' if len(output) > 65536 else '')
             step.duration = time.monotonic() - step.started
             if step.status == 'error':
                 self.error_count += 1
@@ -216,7 +221,7 @@ class TraceState:
             self.steps[index].status = 'stopped'
             self.steps[index].detail = '未收到工具结果；实际执行效果未知'
         self.pending.clear()
-        labels = {'completed': '本轮结束', 'cancelled': '已停止', 'timeout': '本轮超时',
+        labels = {'completed': '本轮结束', 'waiting': '本步已执行 · 等待继续', 'cancelled': '已停止', 'timeout': '本轮超时',
                   'limit': '达到轮次上限', 'error': '本轮出错'}
         title = labels.get(status, '本轮结束')
         grade = record.get('grade', {})
@@ -229,7 +234,7 @@ class TraceState:
         detail = f"{record.get('elapsed_seconds', 0):.1f}s · {record.get('tool_calls', 0)} 次工具调用"
         if 'passed' in grade and 'total' in grade:
             detail += f" · 验收 {grade['passed']}/{grade['total']}"
-        state = 'warning' if grade.get('status') == 'fail' or status != 'completed' else 'note'
+        state = 'warning' if grade.get('status') == 'fail' or status not in {'completed', 'waiting'} else 'note'
         self.steps.append(Step(title, detail, status=state))
         self.current = title
 
@@ -252,10 +257,16 @@ def replay_records(records):
     state = TraceState()
     for record in records:
         for event in record.get('events', []):
-            if event['kind'] == 'user':
+            if event['kind'] in {'user', 'continue'}:
                 state.begin(event['data']['text'])
             else:
-                state.feed(Event(event['kind'], event['data']))
+                item = Event(event['kind'], event['data'])
+                try:
+                    validate_event(item, serialized=True)
+                except EventContractError as exc:
+                    state.feed(Event('error', {'text': f'旧运行记录的事件格式不完整：{exc}'}))
+                    continue
+                state.feed(item)
         state.finish(record)
     for step in state.steps:
         step.duration = None  # Old records have no per-event timestamps.
