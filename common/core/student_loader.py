@@ -6,7 +6,7 @@ from types import ModuleType
 
 
 def load_student_agent(source: str, path: Path):
-    name = 'lesson_01_agent._saved_agent'
+    name = 'lesson_01_agent._saved_' + path.stem
     module = ModuleType(name)
     module.__file__ = str(path)
     module.__package__ = 'lesson_01_agent'

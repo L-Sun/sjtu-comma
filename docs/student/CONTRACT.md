@@ -1,6 +1,6 @@
 # 学生模块接口契约
 
-Web 工作台由教师完成。第一课先阅读 `lesson_01_agent/README.md`，和教学 Chat 一起完成 `agent.py` 中六个辅助函数与 `run_turn()` 循环；接口和事件格式已提供。未完成时由预置教学 Chat 提供 list_files、read_course_file、check_agent；它不依赖作业函数。保存 agent.py 后自动检查，通过后下一轮加载同一已检查版本的学生实现，保留对话。修改出错后返回教学 Chat。运行记录中的 runner 和 source_version 标明本轮实际实现及代码 SHA-256。本文供查阅接口细节。第二课填写 `cua.py`。不要通过修改 `common/core/policy.py` 绕过实验条件。
+Web 工作台由教师完成。第一课先阅读 `lesson_01_agent/README.md`，先与教学 Chat 完成 `tools.py` 的 Edit 接入，再用接通的 Edit 完成 `agent.py` 中六个辅助函数与 `run_turn()` 循环；接口和事件格式已提供。未完成时由预置教学 Chat 提供 list_files、read_course_file、check_agent；它不依赖 Agent 作业函数；tools.py 的声明与分发检查通过后，下一轮才开放 edit_course_file。保存 tools.py 或 agent.py 后自动检查，通过后下一轮加载同一已检查版本的学生实现，保留对话。修改出错后返回教学 Chat。运行记录中的 runner 和 source_version 标明本轮实际实现及代码 SHA-256。本文供查阅接口细节。第二课填写 `cua.py`。不要通过修改 `common/core/policy.py` 绕过实验条件。
 
 ## LLM（已提供，无需实现）
 

@@ -10,3 +10,5 @@ runs/
 dist/
 *.egg-info/
 .DS_Store
+
+.course-edits/

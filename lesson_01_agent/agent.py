@@ -1,7 +1,7 @@
 """第一课：和教学 Chat 一起完成 6 个辅助函数，以及第 7 步 Agent loop。
 
-从 README.md 开始；每完成一个函数，用 check.py 检查对应步骤。
-LLM、工具、网页和图片处理均已提供，不需要实现。
+从 README.md 开始，先与 Chat 完成 tools.py 的 Edit 接入，再用它一起修改这里。
+每完成一个函数，用 check.py 检查对应步骤。LLM、底层工具、网页和图片处理已提供。
 """
 import asyncio
 import json

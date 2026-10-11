@@ -35,7 +35,7 @@ def action_title(name, args):
         return '检查自己的 Agent', '辅助函数 · 自己的 Agent loop'
     if name in {'read_file', 'read_course_file'}:
         return f"读取第 {args.get('start_line', 1)}–{args.get('end_line', 120)} 行", path
-    if name == 'edit':
+    if name in {'edit', 'edit_course_file'}:
         return f"修改 {len(args.get('edits', []))} 处代码", path + ' · 整批校验后写入'
     if name == 'bash':
         return '执行命令 · ' + short(args.get('command', ''), 90), ''
@@ -99,7 +99,9 @@ def result_summary(name, result):
         return 'done', f"{data.get('path', '')} · 已读取 {len(data['content'].splitlines())} 行"
     if name == 'check_agent' and 'ready' in data:
         outcome = '全部通过，下轮使用我的 Agent' if data['ready'] else short(data.get('detail', '请继续完成作业'), 95)
-        return 'done', f"{data.get('passed', 0)}/{data.get('total', 7)} 步通过 · {outcome}"
+        edit = data.get('edit')
+        prefix = f"Edit {'已接入' if edit['ready'] else str(edit.get('passed', 0)) + '/2'} · Loop " if edit else ''
+        return 'done', f"{prefix}{data.get('passed', 0)}/{data.get('total', 7)} 步通过 · {outcome}"
     if name == 'search_file' and 'matches' in data:
         lines = [str(m['line']) for m in data['matches'] if 'line' in m]
         if not lines:
@@ -108,7 +110,7 @@ def result_summary(name, result):
         return 'done', f"找到 {len(lines)} 处 · 第 {', '.join(lines[:8])}{'…' if len(lines) > 8 else ''} 行" + more
     if name == 'read_file' and 'content' in data:
         return 'done', f"已读取 {len(data['content'].splitlines())} 行 · 全文 {data.get('total_lines', '?')} 行"
-    if name == 'edit' and data.get('saved'):
+    if name in {'edit', 'edit_course_file'} and data.get('saved'):
         return 'done', f"已写入 {data.get('edit_count', '?')} 处修改"
     if name == 'calculate' and 'result' in data:
         return 'done', '结果：' + short(data['result'])

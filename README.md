@@ -7,7 +7,7 @@
 ```text
 common/                       公共 Web、运行时、工具、实验题与记录
   core/llm.py                 已完成的 LLM 客户端，两节课共用
-lesson_01_agent/              6 个辅助函数 + 学生实现 Agent loop + 离线检查
+lesson_01_agent/              先接入 Edit + 6 个辅助函数 + 学生实现 Agent loop
 lesson_02_computer_use/       Agent 标准实现 + Cua 接入作业
 docs/student/                作业说明与接口契约
 scripts/                     检查器、练习页、验收与打包
@@ -18,10 +18,10 @@ tests/                       框架与标准实现回归测试
 
 | 课时 | 当前作业 | 已提供 | 开放能力 |
 | --- | --- | --- | --- |
-| [01 · Agent](lesson_01_agent/README.md) | `agent.py` 的 6 个辅助函数与 `run_turn()` | 函数接口、LLM 客户端、Web、基础工具 | 对话、A1—A5、bash |
+| [01 · Agent](lesson_01_agent/README.md) | `tools.py` 接入 Edit；`agent.py` 实现辅助函数与 Loop | 函数接口、LLM 客户端、Web、基础工具 | 对话、A1—A5、bash |
 | [02 · Computer Use](lesson_02_computer_use/README.md) | `cua.py` | 以上内容、同目录 `agent.py` 标准实现 | 第一课能力 + 本机电脑操作 |
 
-只需要 Python 基础即可开始第一课：[和 Chat 一起实现函数与 Agent loop](lesson_01_agent/README.md)。教学 Chat 会先帮你列文件、读代码、返回可粘贴的函数；每个函数有单独的离线检查，全部通过后同一对话交给你自己的 Agent。函数接口和流程图已提供；学生与 Chat 直接实现 `run_turn()` 的“模型 → 工具 → 模型”循环，普通聊天是其中的退出分支。
+只需要 Python 基础即可开始第一课：[和 Chat 一起实现函数与 Agent loop](lesson_01_agent/README.md)。先与教学 Chat 完成 `tools.py` 的工具声明与执行分发；Edit 接通后，用它协助编辑后续作业。每个函数有单独的离线检查，全部通过后同一对话交给你自己的 Agent。函数接口和流程图已提供；学生与 Chat 直接实现 `run_turn()` 的“模型 → 工具 → 模型”循环，普通聊天是其中的退出分支。
 
 ## 启动
 
@@ -32,7 +32,7 @@ uv sync --python 3.12
 uv run mini-agent --lesson 1 --open
 ```
 
-浏览器地址 **http://127.0.0.1:8766**。`--lesson 1`、`--lesson 2` 切换课时，`--port` 更换端口，`--open` 自动打开浏览器。停止旧服务后再启动另一课时，或使用不同端口。默认第一课；作业尚未完成时使用教学 Chat，可列目录、读文件、讨论实现并检查代码。学生粘贴保存后自动检查，全部通过后下一轮切换到自己的 Agent，无需重启。「测试 LLM」直接使用已提供的客户端。
+浏览器地址 **http://127.0.0.1:8766**。`--lesson 1`、`--lesson 2` 切换课时，`--port` 更换端口，`--open` 自动打开浏览器。停止旧服务后再启动另一课时，或使用不同端口。默认第一课；作业尚未完成时使用教学 Chat，可列目录、读文件、讨论实现并检查代码。先手动保存 Edit 的接入代码；接通后 Chat 可以实际修改作业并检查。Loop 全部通过后下一轮切换到自己的 Agent，无需重启。「测试 LLM」直接使用已提供的客户端。
 
 想先体验已完成的聊天、工具与代码编辑，可以直接启动第二课；该课只把 Cua 接入留空。仅预览界面用 `uv run mini-agent --lesson 2 --demo --open`，模拟模式不调用模型或操作电脑。终端按 Ctrl+C 停止服务。
 

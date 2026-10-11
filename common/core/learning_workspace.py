@@ -1,14 +1,13 @@
-"""Read-only course files and isolated, versioned checks of the student's Agent."""
+"""Course files, student-connected editing, and versioned exercise checks."""
 from __future__ import annotations
 import asyncio
 import hashlib
 import json
 from pathlib import Path
-import subprocess
-import sys
 
 from common.core.config import ROOT
-from common.core.shell_tools import child_environment, ShellRunner
+from common.core.student_checks import run_student_check
+from common.core.learning_edit import EditIntegration
 from common.core.student_loader import load_student_agent
 from common.core.types import ToolResult, ToolSpec
 
@@ -23,6 +22,7 @@ class LearningWorkspace:
         self.agent_path = self.root / 'lesson_01_agent/agent.py'
         self.check_timeout = check_timeout
         self.lock = asyncio.Lock()
+        self.edit = EditIntegration(self.root, check_timeout=check_timeout)
         self.source = None
         self.version = None
         self.status = self._not_ready('正在检查已保存的 agent.py。')
@@ -32,7 +32,8 @@ class LearningWorkspace:
 
     def public(self):
         return {**self.status, 'version': self.version,
-                'runner': 'student' if self.status['ready'] else 'teaching_chat'}
+                'runner': 'student' if self.status['ready'] else 'teaching_chat',
+                'edit': self.edit.public()}
 
     def _allowed(self, relative, *, directory=False):
         text = relative.as_posix()
@@ -68,20 +69,23 @@ class LearningWorkspace:
                     'offset': {'type': 'integer', 'minimum': 0},
                 }, 'additionalProperties': False,
             }),
-            ToolSpec('read_course_file', '读取最新保存的课程源文件或讲义，返回带行号文本。每次最多160行，可分段继续读取。修改建议前先读文件；此工具不会写文件。', {
+            ToolSpec('read_course_file', '读取最新保存的课程源文件或讲义，返回带行号文本。返回文件版本和带行号的文本，每次最多160行，可分段读取。编辑时使用 version 作为 base_version，old_text 不包含行号。', {
                 'type': 'object', 'properties': {
                     'path': {'type': 'string', 'description': '例如 lesson_01_agent/agent.py 或 lesson_01_agent/README.md'},
                     'start_line': {'type': 'integer', 'minimum': 1},
                     'end_line': {'type': 'integer', 'minimum': 1},
                 }, 'required': ['path'], 'additionalProperties': False,
             }),
-            ToolSpec('check_agent', '检查最新保存的第一课 agent.py：六个辅助函数、学生自己实现的 run_turn、两轮聊天、批量工具调用、错误处理与轮数上限。用假模型和假工具，不消耗模型额度。返回逐项结果和代码版本；依据实际结果解释待修复问题。通过后下一个回合使用学生自己的 Agent。', {
+            ToolSpec('check_agent', '检查第一课 tools.py 的 Edit 接入，以及 agent.py：六个辅助函数、学生自己实现的 run_turn、两轮聊天、批量工具调用、错误处理与轮数上限。用假模型和假工具，不消耗模型额度。返回逐项结果和代码版本；依据实际结果解释待修复问题。通过后下一个回合使用学生自己的 Agent。', {
                 'type': 'object', 'properties': {}, 'additionalProperties': False,
             }),
+            *self.edit.tools(),
         ]
 
     async def execute(self, name, arguments):
         try:
+            if name == 'edit_course_file':
+                return await self.edit.execute(name, arguments)
             if name == 'check_agent':
                 result = await self.refresh(force=True)
             elif name == 'list_files':
@@ -108,9 +112,11 @@ class LearningWorkspace:
                 end = arguments.get('end_line', start+159)
                 if type(start) is not int or type(end) is not int or start < 1 or end < start or end-start >= 160:
                     raise ValueError('请提供有效行号，每次最多读取160行。')
-                lines = path.read_text(encoding='utf-8').splitlines()
+                source = path.read_bytes().decode('utf-8')
+                lines = source.splitlines()
                 selected = lines[start-1:end]
-                result = {'path': path.relative_to(self.root).as_posix(), 'total_lines': len(lines),
+                result = {'path': path.relative_to(self.root).as_posix(), 'version': hashlib.sha256(source.encode('utf-8')).hexdigest(),
+                          'total_lines': len(lines),
                           'start_line': start, 'end_line': min(end, len(lines)),
                           'content': '\n'.join(f'{i}: {line}' for i, line in enumerate(selected, start))}
             else:
@@ -120,11 +126,12 @@ class LearningWorkspace:
             return ToolResult(str(exc), is_error=True)
 
     async def refresh(self, *, force=False):
+        await self.edit.refresh(force=force)
         async with self.lock:
             try:
                 if self.agent_path.is_symlink() or self.agent_path.stat().st_size > 256 * 1024:
                     raise ValueError('agent.py 需要是小于256KiB的普通文件。')
-                source = self.agent_path.read_text(encoding='utf-8')
+                source = self.agent_path.read_bytes().decode('utf-8')
                 version = hashlib.sha256(source.encode('utf-8')).hexdigest()
             except (OSError, ValueError, UnicodeError):
                 self.version, self.source = None, None
@@ -137,49 +144,8 @@ class LearningWorkspace:
             return self.public()
 
     async def _check(self, source):
-        options = {'start_new_session': True} if sys.platform != 'win32' else {
-            'creationflags': subprocess.CREATE_NEW_PROCESS_GROUP}
-        try:
-            process = await asyncio.create_subprocess_exec(
-            sys.executable, '-m', 'lesson_01_agent.check', '--json', '--source-stdin',
-            cwd=self.root, env=child_environment(), stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, **options)
-        except OSError:
-            return self._not_ready("无法启动检查进程，请运行离线检查查看详情。")
-        async def read_limited(stream):
-            data = bytearray()
-            while chunk := await stream.read(8192):
-                if len(data) < 64 * 1024:
-                    data.extend(chunk[:64 * 1024-len(data)])
-            return bytes(data)
-        async def communicate():
-            async def send_source():
-                try:
-                    process.stdin.write(source.encode('utf-8'))
-                    await process.stdin.drain()
-                except (BrokenPipeError, ConnectionResetError):
-                    pass
-                finally:
-                    process.stdin.close()
-            _, stdout, _ = await asyncio.gather(send_source(), read_limited(process.stdout), read_limited(process.stderr))
-            await process.wait()
-            return stdout
-        try:
-            output = await asyncio.wait_for(communicate(), self.check_timeout)
-            result = json.loads(output)
-            if not isinstance(result, dict) or not isinstance(result.get('checks'), list):
-                raise ValueError()
-            result['ready'] = result.get('ready') is True and process.returncode == 0
-            return result
-        except asyncio.CancelledError:
-            await ShellRunner(self.root)._stop(process)
-            raise
-        except TimeoutError:
-            await ShellRunner(self.root)._stop(process)
-            return self._not_ready('检查超时，请检查是否有无限循环或未结束的等待。教学 Chat 仍可使用。')
-        except (ValueError, OSError):
-            await ShellRunner(self.root)._stop(process)
-            return self._not_ready('检查未能完成，请检查 agent.py 的导入或运行错误，或运行离线检查查看详情。')
+        return await run_student_check(self.root, 'lesson_01_agent.check', source,
+                                       self.check_timeout, self._not_ready)
 
     def student_agent(self):
         if not self.status['ready'] or self.source is None:

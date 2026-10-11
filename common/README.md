@@ -15,4 +15,4 @@
 
 从项目根目录运行 `uv run mini-agent --lesson 1 --open`。每个 lesson 的 README 给出自己的目标和检查命令。
 
-第一课预置助教在 `app/learning_chat.py`，仅使用 `core/learning_workspace.py` 的三个课程工具。检查器用独立进程和保存的源码快照运行；`core/student_loader.py` 加载通过检查的同一版本。教学 Chat 不导入未完成的作业，学生 Agent 接手后不继续使用助教循环。
+第一课预置助教在 `app/learning_chat.py`，初始使用 `core/learning_workspace.py` 的三个课程工具。学生完成 tools.py 的工具声明与执行分发后，`core/learning_edit.py` 检查并加载接入，才开放 Edit；底层读写、版本校验和备份由 `core/course_editor.py` 提供。检查器用独立进程和保存的源码快照运行；`core/student_loader.py` 加载通过检查的同一版本。教学 Chat 不导入未完成的作业，学生 Agent 接手后不继续使用助教循环。
