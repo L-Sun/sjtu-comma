@@ -16,6 +16,7 @@ from common.core.config import ROOT
 from common.core.experiments import TASKS
 from common.core.learning_workspace import LearningWorkspace
 from common.core.runtime_diagnostics import failure_context
+from common.core.edit_tools import FILENAME
 
 RUN_ID = re.compile(r'^\d{8}T\d{6}-[a-f0-9]{8}$')
 SESSION_ID = re.compile(r'^[a-f0-9]{32}$')
@@ -143,10 +144,10 @@ class SessionService:
                 continue
             session.records.sort(key=lambda record: record['started_at'])
             session.messages = [message for record in session.records for message in messages_from(record)]
-            session.trace = replay_trace(session.records[-1])
+            session.trace = replay_records(session.records)
             session.settings.update({key: session.records[-1][key] for key in ('model', 'perception')})
             session.status = session.records[-1]['status']
-            session.readonly = True  # Reset before retrying; model context does not survive a restart.
+            session.readonly = not self.restore_runtime(session)
 
         for conversation_id, records in conversations.items():
             records.sort(key=lambda record: (record['started_at'], record['id']))
@@ -162,17 +163,33 @@ class SessionService:
                 (m['text'] for m in session.messages if m['role'] == 'user'), '历史对话'), 46)
             session.status = 'cancelled' if latest['status'] == 'running' else latest['status']
             session.trace = replay_records([*records[:-1], {**latest, 'status': session.status}])
-            # A crash or failed turn may leave unmatched tool calls. Never resume those.
-            recoverable = latest['status'] in {'completed', 'limit', 'waiting'} or (
-                latest['status'] == 'error' and latest.get('context_recovered') is True)
-            if recoverable and isinstance(latest.get('model_messages'), list):
-                session.runtime.state.messages = deepcopy(latest['model_messages'])
-                session.runtime.awaiting_continue = bool(latest.get('awaiting_continue') and
-                    session.runtime.state.messages and session.runtime.state.messages[-1].get('role') == 'tool')
-            if latest['status'] not in {'running', 'cancelled', 'timeout'}:
-                failed = next((record for record in reversed(records) if record['status'] == 'error'), None)
-                session.runtime.last_failure = failure_context(failed) if failed else None
+            self.restore_runtime(session)
             self.sessions[session.id] = session
+
+    def restore_runtime(self, session):
+        records = session.records
+        latest = records[-1]
+        # A crash or failed turn may leave unmatched tool calls. Never resume those.
+        recoverable = latest['status'] in {'completed', 'limit', 'waiting'} or (
+            latest['status'] == 'error' and latest.get('context_recovered') is True)
+        restored = recoverable and isinstance(latest.get('model_messages'), list)
+        if restored:
+            session.runtime.state.messages = deepcopy(latest['model_messages'])
+            session.runtime.awaiting_continue = bool(latest.get('awaiting_continue') and
+                session.runtime.state.messages and session.runtime.state.messages[-1].get('role') == 'tool')
+        if latest['status'] not in {'running', 'cancelled', 'timeout'}:
+            failed = next((record for record in reversed(records) if record['status'] == 'error'), None)
+            session.runtime.last_failure = failure_context(failed) if failed else None
+        previous = next((record for record in reversed(records) if record.get('code_file')), None)
+        if previous:
+            path = self.root / previous['id'] / 'code' / FILENAME
+            if path.is_file() and not path.is_symlink() and not path.parent.is_symlink():
+                session.runtime.edit_path = path
+            else:
+                # Do not silently replace a missing edited file with the baseline.
+                session.readonly = True
+                restored = False
+        return restored
 
     def publish(self):
         self.revision += 1
@@ -318,7 +335,7 @@ class SessionService:
         if session.runtime.last_record:
             ids.add(session.runtime.last_record.id)
         self.archive_runs(ids)
-        session.runtime.reset()
+        session.runtime.reset(clear_workspace=True)
         session.runtime.last_record = None
         session.messages = []
         session.records = []

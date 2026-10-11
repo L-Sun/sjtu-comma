@@ -61,7 +61,7 @@ async def test_saved_experiment_reopens_in_fixed_slot_and_resets_after_restart(t
         rows = (await client.get('/api/sessions')).json()['sessions']
         assert len(rows) == 1 and sum(row['id'] == sid for row in rows) == 1
         value = (await client.get(f'/api/sessions/{sid}')).json()
-        assert value['readonly'] and value['messages'] == done['messages']
+        assert not value['readonly'] and value['messages'] == done['messages']
         assert (await client.post('/api/sessions/clear-history', json={})).json()['cleared'] == 0
         assert (await client.get(f'/api/runs/{run_id}/export')).status_code == 200
         assert (await client.post(f'/api/sessions/{sid}/reset', json={})).status_code == 200

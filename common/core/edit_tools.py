@@ -15,11 +15,11 @@ def version(text):
 
 
 class EditWorkspace:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, *, initial: bytes | None = None):
         self.root = root.resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         self.path = self.root / FILENAME
-        self.path.write_bytes(BASELINE.encode('utf-8'))
+        self.path.write_bytes(BASELINE.encode('utf-8') if initial is None else initial)
 
     def tools(self):
         path = {'type': 'string', 'enum': [FILENAME]}

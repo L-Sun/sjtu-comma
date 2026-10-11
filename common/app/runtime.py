@@ -44,11 +44,14 @@ class Runtime:
         self.conversation = None
         self.root = root
         self.learning = learning
+        self.edit_path = None
 
-    def reset(self):
+    def reset(self, *, clear_workspace=False):
         self.state = AgentState()
         self.awaiting_continue = False
         self.last_failure = None
+        if clear_workspace:
+            self.edit_path = None
 
     def module(self, name):
         if name == "llm":
@@ -154,12 +157,19 @@ class Runtime:
                     label = '教学 Chat · 单步模式' if teaching else '我的 Agent · 自动循环'
                     report(Event('status', {'text': label, 'runner': progress['runner']}))
                 if task_id == "code-edit" and not teaching and not llm_only:
-                    self.reset()
-                    editor = EditWorkspace(record.path / "code")
+                    # Each turn gets an immutable-after-completion snapshot, but continues
+                    # from this conversation's latest file and the student's AgentState.
+                    previous = self.edit_path
+                    initial = previous.read_bytes() if previous is not None else None
+                    editor = EditWorkspace(record.path / "code", initial=initial)
+                    self.edit_path = editor.path
+                    if previous is not None:
+                        record.data["code_parent_run"] = previous.parent.parent.name
                     (record.path / "baseline.py").write_bytes(BASELINE.encode("utf-8"))
                     record.data["code_file"] = "code/" + FILENAME
                     record.data["code_exercise"] = "course-rename-5000-v1"
-                    report(Event("status", {"text": "已创建 5,000 行课程代码副本；只修改课程 B，模型历史已清空。"}))
+                    report(Event("status", {"text": "已接续上轮代码副本和 Agent 历史。" if previous is not None
+                                              else "已创建 5,000 行课程代码副本。"}))
                 if llm_only:
                     reply = await self.module("llm").complete([{"role": "user", "content": text}], [], config)
                     report(Event("assistant", {"text": reply.text}))
@@ -246,6 +256,6 @@ class Runtime:
                 record.data["grade"] = record.data.pop("code_grade")
                 g = record.data["grade"]
                 report(Event("status", {"text": f"代码验收 {g['passed']}/{g['total']} · {g['reason']}"}))
-            if self.conversation and not self.experiment_id:
+            if self.conversation or self.experiment_id:
                 record.data['model_messages'] = saved_messages(self.state.messages, config.api_key)
             record.save()

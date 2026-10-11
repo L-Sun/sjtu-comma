@@ -20,7 +20,7 @@ uv run python scripts/export_student.py
 
 各课提供的前置标准答案是用于验证框架的最小实现，未加入长对话压缩或重试优化。这样模型对比共享相同框架行为。
 
-「长文件局部编辑」的 `search_file`/`read_file`/`edit` 是教师提供的普通 function tools，和学生 Agent 循环解耦。每轮保存 `baseline.py`、`code/course_page.py`、编辑 diff 和验收结果。原始合成文件为5,000行，可用 `scripts/build_edit_fixture.py` 确定性重建。B 的三处目标在1808、2060、3100行，A/C和文档文字提供同名干扰。
+「长文件局部编辑」的 `search_file`/`read_file`/`edit` 是教师提供的普通 function tools，和学生 Agent 循环解耦。同一会话续聊保留学生 Agent 历史与编辑状态，点击“重置实验”才重建基线。每轮保存独立的 `baseline.py`、`code/course_page.py`、编辑 diff 和验收结果。原始合成文件为5,000行，可用 `scripts/build_edit_fixture.py` 确定性重建。B 的三处目标在1808、2060、3100行，A/C和文档文字提供同名干扰。
 
 批量补丁全部匹配同一版本并互不重叠后，通过同目录临时文件与 `os.replace` 原子回写；不会把一半工具参数或一半补丁写进长文件。模型修改后的代码先做静态和逐字节检查，只有与教师已知三处改名完全一致才执行页面方法，避免执行任意生成代码。
 
