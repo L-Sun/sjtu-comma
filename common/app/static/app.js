@@ -95,8 +95,7 @@ async function clearHistory(){
 }
 $('clear-history').onclick=clearHistory;
 async function chooseTask(id){
-  if(id==='shell'){newChat(true);setPrompt('请使用 bash 工具输出 COMMA_SHELL_OK，并告诉我当前工作目录。');}
-  else{const session=ui.sessions.find(s=>s.experiment===id);if(session)await openSession(session.id);}
+  const session=ui.sessions.find(s=>s.experiment===id);if(session)await openSession(session.id);
   updateHint();controls();$('prompt').focus();
 }
 async function changeSettings(){

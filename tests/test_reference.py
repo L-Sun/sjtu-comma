@@ -72,13 +72,6 @@ async def test_dispatch_rejects_unknown_and_bad_args(tmp_path):
     assert all(r.is_error for r in seen)
 
 
-def test_calculator_verifier_reads_result_not_expression():
-    from scripts.live_verify import calculator_display
-    assert calculator_display('- AXStaticText = "‎128‎×‎37"\n- AXStaticText = "‎4,736"') == "4736"
-    assert calculator_display('- AXStaticText = "0"') == "0"
-    assert calculator_display('no display') is None
-
-
 def test_model_optional_parameters_follow_catalog():
     from common.core.llm import request_parameters
     config = Config()

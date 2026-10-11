@@ -51,7 +51,7 @@ Web 工作台由教师完成。第一课先阅读 `lesson_01_agent/README.md`，
 
 ## 教师提供的 Edit 工具
 
-A5 的 `context.tools` 自动包含以下工具，均通过通用的 `context.execute` 分发，无需写特例。可写路径仅为本轮副本中的 `course_page.py`。
+「长文件局部编辑」 的 `context.tools` 自动包含以下工具，均通过通用的 `context.execute` 分发，无需写特例。可写路径仅为本轮副本中的 `course_page.py`。
 
 | 工具 | 契约 |
 | --- | --- |
@@ -61,13 +61,13 @@ A5 的 `context.tools` 自动包含以下工具，均通过通用的 `context.ex
 
 `old_text` 必须非空、唯一匹配且不与其他补丁重叠，每个字符串最多8,000字符。不要全局替换或回传完整5,000行文件。版本变化、匹配歧义或任一补丁失败都会返回 `ToolResult(is_error=True)`，整批不写入。成功返回新版本和实际 diff。模型决定哪里改，教师工具程序负责验证和回写。
 
-每次开始 A5 重建基线并清空模型历史。结束后框架检查8项代码条件，结果写入 `run.json` 的 `grade`，不以模型自报为准。工具循环仍需把失败结果回传模型；不要求参数生成到一半就执行，也不要求 token 级流式解析。
+每次开始 「长文件局部编辑」 重建基线并清空模型历史。结束后框架检查8项代码条件，结果写入 `run.json` 的 `grade`，不以模型自报为准。工具循环仍需把失败结果回传模型；不要求参数生成到一半就执行，也不要求 token 级流式解析。
 
 ## 教师提供的 Bash 工具
 
 Lesson 01/02 的 `context.tools` 还包含 `bash(command, cwd?, timeout_seconds=30)`，经 `context.execute` 调用。名称是统一接口：macOS 实际运行 zsh，Linux 运行 Bash，Windows 优先 pwsh、其次 powershell；具体平台、shell、默认目录在工具 description 中。模型应依照该说明生成语法，不根据工具名假定 Bash。
 
-`command` 最多16000字符，超时1—120秒，非交互执行且每次是新进程。`cwd` 可为绝对路径或相对于工具默认目录的路径；默认目录为项目根，A5 为当轮代码副本。普通本机权限，没有目录隔离；A5 题目仍要求通过 edit 完成指定补丁。
+`command` 最多16000字符，超时1—120秒，非交互执行且每次是新进程。`cwd` 可为绝对路径或相对于工具默认目录的路径；默认目录为项目根，「长文件局部编辑」 为当轮代码副本。普通本机权限，没有目录隔离；「长文件局部编辑」 题目仍要求通过 edit 完成指定补丁。
 
 `ToolResult.text` 是 JSON，字段为 `platform`、`shell`、`cwd`、`exit_code`、`stdout`、`stderr`、`timed_out`、`stdout_truncated`、`stderr_truncated`，成功启动的命令另有 `duration_seconds`。非零退出、超时和启动失败会设置 `is_error=True`；启动失败的 exit_code 为 null。输出按 UTF-8 解码，每个流最多16KiB。工具不要求 stdin 输入，不加载用户 shell 配置，不延续上一条命令的变量和 cd 状态。
 

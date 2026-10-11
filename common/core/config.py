@@ -13,8 +13,8 @@ class Config:
     api_key: str = field(default="", repr=False)
     base_url: str = "https://openrouter.ai/api/v1"
     lesson: int = 2
-    model: str = "google/gemini-2.5-flash"
-    models: tuple[str, ...] = ("google/gemini-2.5-flash", "google/gemini-3.8-flash", "openai/gpt-6.1-sol")
+    model: str = "openai/gpt-6.1-sol"
+    models: tuple[str, ...] = ("openai/gpt-6.1-sol", "google/gemini-2.5-flash", "google/gemini-3.8-flash")
     max_rounds: int = 24
     max_tokens: int = 2048
     turn_timeout: float = 180

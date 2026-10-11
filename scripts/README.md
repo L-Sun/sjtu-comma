@@ -3,11 +3,9 @@
 从项目根目录用 `uv run python scripts/<脚本>.py` 运行。
 
 - `check_student.py llm|agent|cua --lesson N`：只检查指定课时模块；LLM 会调用真实 API，Agent 使用假模型，Cua 只读查询窗口。
-- `practice_server.py`：在8765端口启动电脑操作练习页；工作台在8766端口。
-- `build_edit_fixture.py`：确定性生成5,000行 A5 基线。
+- `build_edit_fixture.py`：确定性生成5,000行长文件编辑基线。
 - `export_student.py`：按白名单构建课程发布包，包含前置标准答案但排除密钥、运行记录及 Cua 测试辅助实现。
-- `live_verify.py`、`live_edit_verify.py`：经 HTTP 接口验证真实模型调用链，会产生 API 费用；使用第二课已提供的 LLM/Agent。
-- `live_practice.py`、`live_verify.py --desktop`：先完成第二课 Cua，并打开目标应用后再运行；会实际操作本机。
+- `live_edit_verify.py`：经 HTTP 接口验证真实模型调用链，会产生 API 费用；使用第二课已提供的 LLM/Agent。
 
 `web_client.py` 是验收脚本共用的 HTTP 客户端，不是另一种产品模式。浏览器交互单独验收。
 

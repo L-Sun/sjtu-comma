@@ -14,7 +14,7 @@ async def test_clear_history_keeps_current_context_and_survives_restart(tmp_path
         old = await create(client)
         first = await finish(app, client, old, '旧对话第一轮')
         second = await finish(app, client, old, '旧对话第二轮')
-        current = await create(client, task_id='format')
+        current = await create(client, task_id='free')
         kept = await finish(app, client, current, '保留当前暗号 KEEP_CONTEXT')
         response = await client.post('/api/sessions/clear-history', json={'keep_id': current})
         assert response.status_code == 200 and response.json()['cleared'] == 1

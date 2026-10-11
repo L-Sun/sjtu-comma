@@ -112,6 +112,11 @@ class SessionService:
                     continue
                 if not isinstance(record.get('started_at'), str) or not isinstance(record.get('status'), str):
                     continue
+                # Retired experiments must not reappear as ordinary conversations.
+                if record.get('task_id', 'free') not in {task.id for task in TASKS}:
+                    continue
+                if record.get('experiment_id') and record['experiment_id'] not in self.sessions:
+                    continue
                 messages_from(record)  # Validate visible events before grouping them.
                 experiment = self.sessions.get(record.get('experiment_id'))
                 if experiment is not None:

@@ -141,9 +141,7 @@ async def test_http_validation_localhost_csrf_and_no_secrets(tmp_path):
 
 
 def test_grading_and_redaction():
-    assert grade('constraints', '8|6|2', [])['status'] == 'pass'
-    assert grade('constraints', '8|6|2。', [])['status'] == 'fail'
-    assert grade('calculator', '4736', [])['status'] == 'manual'
+    assert grade('free', '回答', [])['status'] == 'manual'
     assert 'secret' not in str(redact({'authorization': 'secret', 'text': 'secret'}, 'secret'))
 
 
@@ -197,7 +195,7 @@ async def test_lesson_history_excludes_later_capabilities(tmp_path):
 
 async def test_task_selection_never_changes_lesson_capabilities(tmp_path):
     async with client_for(tmp_path, lesson=1) as (app, client):
-        for task_id in ['free', 'format', 'code-edit']:
+        for task_id in ['free', 'code-edit']:
             sid = await create(client, task_id=task_id)
             snapshot = await finish(app, client, sid)
             record = (await client.get(f"/api/runs/{snapshot['run_id']}/export")).json()

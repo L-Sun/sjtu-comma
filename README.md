@@ -18,7 +18,7 @@ tests/                       框架与标准实现回归测试
 
 | 课时 | 当前作业 | 已提供 | 开放能力 |
 | --- | --- | --- | --- |
-| [01 · Agent](lesson_01_agent/README.md) | `tools.py` 接入 Edit；`agent.py` 实现辅助函数与 Loop | 函数接口、LLM 客户端、Web、基础工具 | 对话、A1—A5、bash |
+| [01 · Agent](lesson_01_agent/README.md) | `tools.py` 接入 Edit；`agent.py` 实现辅助函数与 Loop | 函数接口、LLM 客户端、Web、基础工具 | 对话、长文件局部编辑、bash |
 | [02 · Computer Use](lesson_02_computer_use/README.md) | `cua.py` | 以上内容、同目录 `agent.py` 标准实现 | 第一课能力 + 本机电脑操作 |
 
 只需要 Python 基础即可开始第一课：[和 Chat 一起实现函数与 Agent loop](lesson_01_agent/README.md)。先与教学 Chat 完成 `tools.py` 的工具声明与执行分发；Edit 接通后，用它协助编辑后续作业。课程分三阶段：接入 Edit、一起完成四个辅助函数、实现核心 Loop。Edit 写入后直接附带离线检查结果，全部通过后同一对话交给你自己的 Agent。消息准备、网页事件、错误和图片处理已提供；学生与 Chat 直接实现 `run_turn()` 的“模型 → 工具 → 模型”循环，普通聊天是其中的退出分支。
@@ -68,7 +68,7 @@ uv run python scripts/check_student.py cua --lesson 2    # 本机 Cua，只读�
 
 ## Web 工作台
 
-能力由启动的 lesson 自动累加，页面没有阶段、能力或题目切换器。左侧「固定实验」列出当前课时的实验：第一课 A1—A5，第二课另有 B1—B3。点击实验会打开专属会话，并在输入框预填可编辑的提示词；A5 额外挂载本轮练习文件副本。
+能力由启动的 lesson 自动累加，页面没有阶段、能力或题目切换器。两个课时的左侧「固定实验」都只保留「长文件局部编辑」。点击后打开专属会话，在输入框预填可编辑的提示词，并挂载本轮练习文件副本。
 
 左侧是可搜索的固定实验和普通会话，中间是对话与模型设置，右侧「执行过程」实时展示工具动作、结果、错误和重复调用。只显示已发生的操作，不生成额外的模型思考摘要；完整参数与代码 diff 可导出。
 
@@ -86,11 +86,11 @@ Enter 发送，Shift+Enter 换行，点击方形按钮停止，⌘/Ctrl+K 新对
 
 ## 两组实验
 
-**模型指令遵循与代码修改**：固定框架与题目，比较较早和较新的模型。初始模型列表包含 Gemini 2.5 Flash、Gemini 3.8 Flash 和 GPT‑6.1 Sol（`openai/gpt-6.1-sol`），可在设置中搜索并添加其他模型，也可通过 `.env` 的 `OPENROUTER_MODELS` 修改。已有 `.env` 中的模型列表优先于初始列表。名称可用性和费用以所配置的接口为准；两次实验不足以代表整体能力排序。
+**模型指令遵循与代码修改**：固定框架与题目，比较较早和较新的模型。默认模型为 GPT‑6.1 Sol（`openai/gpt-6.1-sol`），初始模型列表还包含 Gemini 2.5 Flash 和 Gemini 3.8 Flash，可在设置中搜索并添加其他模型，也可通过 `.env` 的 `OPENROUTER_MODELS` 修改。已有 `.env` 中的模型列表优先于初始列表。名称可用性和费用以所配置的接口为准；两次实验不足以代表整体能力排序。
 
 **Computer Use**：固定模型和任务，比较纯视觉、Accessibility Tree、混合模式。公共层强制限制输入信息和可用定位参数；每次比较前需手动恢复电脑应用状态。当前比较同时涉及观察信息与定位方式，不是严格的纯输入消融。
 
-A5 的 [course_page.py](common/core/fixtures/course_page.py) 有5,000行。A/B/C 均有同名方法，只改课程 B 第1808、2060、3100行的定义和两处调用。框架提供 `search_file`、分段 `read_file`、`edit(path, base_version, edits)`；版本、唯一匹配和不重叠校验全部通过才原子写入，失败整批不改。
+「长文件局部编辑」的 [course_page.py](common/core/fixtures/course_page.py) 有5,000行。A/B/C 均有同名方法，只改课程 B 第1808、2060、3100行的定义和两处调用。框架提供 `search_file`、分段 `read_file`、`edit(path, base_version, edits)`；版本、唯一匹配和不重叠校验全部通过才原子写入，失败整批不改。
 
 每轮重建独立副本，保存在 `runs/<run-id>/code/course_page.py`，不修改基线。验收三处改名、无关字节不变、语法与行为，共8项。只有与已知补丁一致的程序才运行行为检查。当前实时更新工具步骤，模型回复整条返回，不包含 token 级流式输出。
 
@@ -98,7 +98,7 @@ A5 的 [course_page.py](common/core/fixtures/course_page.py) 有5,000行。A/B/C
 
 Lesson 01 起自动提供 `bash(command, cwd?, timeout_seconds=30)`：macOS 使用 zsh，Linux 使用 Bash，Windows 使用 PowerShell 7（没有则使用 Windows PowerShell）。实际 shell 会写入工具说明，无需在 Windows 安装 Bash 或 WSL。
 
-每次调用启动新的非交互进程；`cd` 和变量不延续到下次。默认目录是项目根目录，A5 默认本轮代码副本目录。返回退出码、stdout/stderr、耗时、超时与截断标记；每个输出流最多16KiB，超时最多120秒。
+每次调用启动新的非交互进程；`cd` 和变量不延续到下次。默认目录是项目根目录，长文件实验默认本轮代码副本目录。返回退出码、stdout/stderr、耗时、超时与截断标记；每个输出流最多16KiB，超时最多120秒。
 
 这是真实本机命令，按当前用户权限访问文件，不是沙箱。子进程不直接继承模型 API Key，但仍可访问文件。停止或超时清理 POSIX 进程组，Windows 用 `taskkill /T /F` 尝试清理进程树；脱离进程组的常驻服务不保证回收。Lesson 02 在保留这些工具的基础上加入 Cua。电脑观察实验要求模型仅用 Cua 操作目标窗口；验收需核对实际工具调用，不能把提示约束视为沙箱隔离。
 
@@ -123,7 +123,7 @@ irm https://cua.ai/driver/install.ps1 | iex
 
 Python 与 Driver 应处于同一个登录桌面会话，不通过 WSL 控制 Windows 应用。必要时在 `.env` 设置 `CUA_DRIVER_COMMAND` 绝对路径。
 
-先手动打开计算器再做 B1。B2/B3 另启动 `uv run python scripts/practice_server.py`，浏览器打开 `http://127.0.0.1:8765`；工作台仍在8766端口。
+安装并授权驱动后，可在普通对话中指挥 Agent 操作已打开的本机应用。工作台在8766端口。
 
 云端模型会收到目标窗口的截图或可访问性信息。停止不会撤销已完成的点击。电脑任务需独立核对应用状态，模型自报不能作为成功判据。
 
