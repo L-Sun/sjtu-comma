@@ -17,7 +17,7 @@ from common.core.mcp_transport import connect_driver
 from common.core.policy import tools_for_mode, prepare_arguments, filter_result
 from common.core.records import Record, redact, saved_messages
 from common.core.experiments import grade
-from common.core.edit_tools import EditWorkspace, BASELINE, FILENAME
+from common.core.edit_tools import EditWorkspace, FileEditor, BASELINE, FILENAME
 from common.app import learning_chat
 
 SYSTEM = """你是课堂中的简易助手。遵循用户要求，回答简洁。
@@ -69,6 +69,15 @@ class Runtime:
             yield course_tools, self.learning.execute
             return
         shell = ShellRunner(editor.root if editor is not None else ROOT)
+        files = editor
+        file_tools = None
+        if self.lesson == 2:
+            from lesson_02_computer_use import tools as file_tools
+            if files is None:
+                files = FileEditor(ROOT)
+        registered_files = (file_tools.get_tools(files) if file_tools is not None
+                            else files.tools() if files is not None else [])
+        file_names = {tool.name for tool in registered_files}
 
         async def execute_local(name, arguments):
             if name in course_names:
@@ -76,11 +85,13 @@ class Runtime:
             if name == "bash":
                 result = await shell.execute(arguments)
                 return ToolResult(redact(result.text, config.api_key), result.images, result.is_error)
-            if editor is not None and name in {"search_file", "read_file", "edit"}:
-                return await editor.execute(name, arguments)
+            if name in file_names:
+                if file_tools is not None:
+                    return await file_tools.call_tool(name, arguments, files)
+                return await files.execute(name, arguments)
             return await execute_basic(name, arguments)
 
-        local_tools = [*course_tools, *basic_tools(), shell.tool(), *(editor.tools() if editor else [])]
+        local_tools = [*course_tools, *basic_tools(), shell.tool(), *registered_files]
         if self.lesson == 1:
             yield local_tools, execute_local
             return

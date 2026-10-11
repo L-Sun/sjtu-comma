@@ -20,4 +20,6 @@
 
 第一课仅三个教学阶段：Edit 接入、一起完成四个辅助函数、核心 Loop。Edit 保存后由 learning_workspace 在同一工具结果中附带离线 checks，不额外请求模型。学生只编写请求、工具遍历、结果回传和继续/结束的控制流程。
 
+第二课的 `lesson_02_computer_use/tools.py` 提供完整的文件工具声明与分发，普通对话通过 `core/edit_tools.py` 的 `FileEditor` 搜索、读取和编辑任意路径的已有 UTF-8 文本文件；不依赖第一课作业或 Cua 连接状态。固定实验使用同模块的 `EditWorkspace`，仍限定在实验副本。第二课 Agent 同时保留第一课的可选上下文压缩入口。
+
 `lesson_io.context_compaction` 为学生的可选压缩函数报告调用状态；不实现压缩策略、不发起模型请求。Trace 将其显示为独立的进度记录，不计入工具调用。

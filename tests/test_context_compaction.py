@@ -9,17 +9,19 @@ from common.core.event_contract import validate_event
 from common.core.lesson_io import context_compaction
 from common.core.types import ModelReply, ToolResult, ToolSpec
 from lesson_01_agent import agent, check
+from lesson_02_computer_use import agent as completed
 from tests.test_learning_chat import course
 from tests.test_scaffold import client_for
 
 
-async def test_empty_student_compaction_keeps_history_without_model_or_tool_calls():
+@pytest.mark.parametrize('module', [agent, completed])
+async def test_empty_student_compaction_keeps_history_without_model_or_tool_calls(module):
     messages = [{'role': 'system', 'content': '课程'}, {'role': 'user', 'content': '问题'}]
     original = list(messages)
     events = []
     async def unexpected(*args):
         raise AssertionError('The empty extension must not request a model or tool')
-    await agent.compact_history(messages, check.context_for(unexpected, unexpected, events))
+    await module.compact_history(messages, check.context_for(unexpected, unexpected, events))
     assert messages == original
     assert [event.data['context_compaction'] for event in events] == ['running', 'completed']
 
@@ -46,9 +48,6 @@ async def test_compaction_failure_and_cancellation_propagate(failure, expected):
 
 async def test_pending_compaction_is_visible_over_http_before_model_request(course, monkeypatch):
     source = (ROOT / 'lesson_02_computer_use/agent.py').read_text()
-    source = source.replace('from common.core.lesson_io import lesson_io',
-                            'from common.core.lesson_io import context_compaction, lesson_io')
-    source = source.replace('    with lesson_io(', '    await compact_history(messages, context)\n    with lesson_io(')
     source += '''\n@context_compaction
 async def compact_history(messages, context):
     if any(tool.name == "test_hold" for tool in context.tools):

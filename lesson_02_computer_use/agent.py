@@ -4,7 +4,7 @@
 """
 import json
 
-from common.core.lesson_io import lesson_io
+from common.core.lesson_io import context_compaction, lesson_io
 
 from common.core.types import AgentState, Event, ExercisePending, ModelReply, RunContext, ToolResult
 
@@ -62,6 +62,16 @@ def make_tool_message(call_id: str, result: ToolResult) -> dict:
     }
 
 
+@context_compaction
+async def compact_history(messages: list[dict], context: RunContext) -> None:
+    """延续第一课的可选扩展：按需原地压缩历史，默认不修改、不请求模型。
+
+    实现时保留 system、当前任务和完整的工具调用/结果配对。
+    装饰器负责网页进度；第二课基础作业不要求实现压缩算法。
+    """
+    pass
+
+
 # ── 已提供的核心循环：第二课只需接入 cua.py ─────────────────────
 
 
@@ -73,6 +83,8 @@ async def run_turn(user_text: str | None, state: AgentState, context: RunContext
         messages.append({"role": "system", "content": context.system_prompt})
     if user_text is not None:
         messages.append({"role": "user", "content": user_text})
+
+    await compact_history(messages, context)
 
     # 已提供：连接四个辅助函数中的解析和执行，处理网页展示与图片。
     with lesson_io(context, messages, parse_tool_arguments, execute_tool) as context:

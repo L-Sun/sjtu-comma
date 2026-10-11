@@ -51,12 +51,14 @@ Web 工作台由教师完成。第一课先阅读 `lesson_01_agent/README.md`，
 
 ## 教师提供的 Edit 工具
 
-「长文件局部编辑」 的 `context.tools` 自动包含以下工具，均通过通用的 `context.execute` 分发，无需写特例。可写路径仅为本轮副本中的 `course_page.py`。
+第二课普通对话以及「长文件局部编辑」的 `context.tools` 自动包含以下工具，均通过通用的 `context.execute` 分发，无需在 Agent loop 写特例。第二课 `tools.py` 已提供声明与分发的完整实现，底层为 `common/core/edit_tools.py`。
+
+第二课普通对话使用通用 `FileEditor`：`path` 可以是绝对路径、`~` 路径或相对项目根目录的路径，支持不超过2MiB的已有 UTF-8 普通文本文件，不限制文件名或扩展名。编辑直接保存指定文件，保留换行符和权限；不会做 Python 语法或作业检查。新建文件可使用 `bash`。「长文件局部编辑」使用 `EditWorkspace`，可写路径仍仅为本轮副本中的 `course_page.py`。
 
 | 工具 | 契约 |
 | --- | --- |
 | `search_file(path, query, after_line=0)` | 字面搜索，最多返回20处带行号上下文，可翻页；返回文件 `version` |
-| `read_file(path, start_line=1, end_line=120)` | 首尾行均包含，每次最多160行；返回 `version` 和带行号文本，前缀不是文件内容 |
+| `read_file(path, start_line=1, end_line=...)` | 默认从 start_line 起120行，首尾行均包含，每次最多160行，到文件末尾自动截断；返回 `version`、`next_start_line` 和带行号文本，前缀不是文件内容 |
 | `edit(path, base_version, edits)` | `edits` 是1—12个 `{old_text, new_text}`；基于同一版本检查所有替换后一次写入 |
 
 `old_text` 必须非空、唯一匹配且不与其他补丁重叠，每个字符串最多8,000字符。不要全局替换或回传完整5,000行文件。版本变化、匹配歧义或任一补丁失败都会返回 `ToolResult(is_error=True)`，整批不写入。成功返回新版本和实际 diff。模型决定哪里改，教师工具程序负责验证和回写。
@@ -88,4 +90,4 @@ Lesson 01/02 的 `context.tools` 还包含 `bash(command, cwd?, timeout_seconds=
 
 ## 可选上下文压缩入口
 
-第一课提供空的 `compact_history(messages, context)`，由消息准备代码在核心 Loop 前调用。函数可按需原地修改历史；基础检查不要求实现压缩。保留 `@context_compaction`：装饰器只报告运行、结束、失败或取消，不替学生实现算法或请求模型。UI 显示“正在上下文压缩”，这一过程不计入工具调用次数。
+两课均提供空的 `compact_history(messages, context)`，由消息准备代码在核心 Loop 前调用。函数可按需原地修改历史；基础检查不要求实现压缩。保留 `@context_compaction`：装饰器只报告运行、结束、失败或取消，不替学生实现算法或请求模型。UI 显示“正在上下文压缩”，这一过程不计入工具调用次数。
