@@ -85,3 +85,7 @@ Lesson 01/02 的 `context.tools` 还包含 `bash(command, cwd?, timeout_seconds=
 `get_window_state` 的观察开关由框架注入，模型不能修改。输出也再次过滤。纯视觉模式移除 element_token；树/混合允许从树中获取的 token。所有模式保留窗口识别元数据。注意：因此该实验比较的是观察与定位方式组合，并非只改变输入、严格固定所有动作寻址能力的因果实验。
 
 本实验的策略层控制教学条件，不是隔离恶意 Python 代码的安全沙箱。
+
+## 可选上下文压缩入口
+
+第一课提供空的 `compact_history(messages, context)`，由消息准备代码在核心 Loop 前调用。函数可按需原地修改历史；基础检查不要求实现压缩。保留 `@context_compaction`：装饰器只报告运行、结束、失败或取消，不替学生实现算法或请求模型。UI 显示“正在上下文压缩”，这一过程不计入工具调用次数。

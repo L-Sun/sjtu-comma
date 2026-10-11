@@ -5,7 +5,7 @@
 """
 import json
 
-from common.core.lesson_io import lesson_io
+from common.core.lesson_io import context_compaction, lesson_io
 
 from common.core.types import AgentState, ExercisePending, ModelReply, RunContext, ToolResult
 
@@ -56,6 +56,20 @@ def make_tool_message(call_id: str, result: ToolResult) -> dict:
     raise ExercisePending("TODO 1.4 · 完成 make_tool_message：把结果交回模型。")
 
 
+# ── 可选扩展：上下文压缩 ──────────────────────────────────────
+
+
+@context_compaction
+async def compact_history(messages: list[dict], context: RunContext) -> None:
+    """扩展练习：按需压缩 messages，在原列表上修改；默认留空，不发起模型请求。
+
+    保留 system、当前任务和完整的工具调用/结果配对。
+    自己决定何时需要压缩；不需要时直接返回。不要每次都循环请求摘要。
+    调用时的网页进度由 @context_compaction 提供，不需要编写 Event 或 emit。
+    """
+    pass
+
+
 # ── 阶段三：自己实现核心 Agent loop ─────────────────────────────
 
 
@@ -84,6 +98,9 @@ async def run_turn(user_text: str | None, state: AgentState, context: RunContext
         messages.append({"role": "system", "content": context.system_prompt})
     if user_text is not None:
         messages.append({"role": "user", "content": user_text})
+
+    # 已提供：调用可选压缩函数；空实现不修改历史、不请求模型。
+    await compact_history(messages, context)
 
     # 已提供：连接四个辅助函数中的解析和执行，处理网页展示与图片。
     with lesson_io(context, messages, parse_tool_arguments, execute_tool) as context:

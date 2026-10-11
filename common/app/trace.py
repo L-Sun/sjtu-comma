@@ -167,6 +167,7 @@ class TraceState:
     def __init__(self):
         self.steps: list[Step] = []
         self.pending = {}
+        self.compaction_step = None
         self.seen = {}
         self.call_count = self.error_count = self.tokens = self.turn_count = 0
         self.current = '就绪'
@@ -211,6 +212,16 @@ class TraceState:
                 self.tokens += int(value)
         elif event.kind == 'status':
             self.current = short(data.get('text', ''), 120)
+            compaction = data.get('context_compaction')
+            if compaction == 'running':
+                self.compaction_step = len(self.steps)
+                self.steps.append(Step(self.current, started=time.monotonic()))
+            elif compaction in {'completed', 'error', 'cancelled'} and self.compaction_step is not None:
+                step = self.steps[self.compaction_step]
+                step.title = self.current
+                step.status = {'completed': 'done', 'error': 'error', 'cancelled': 'stopped'}[compaction]
+                step.duration = time.monotonic() - step.started
+                self.compaction_step = None
             if data.get('capability_unavailable'):
                 self.steps.append(Step('电脑能力未接通', self.current, status='warning'))
         elif event.kind == 'assistant':
@@ -225,6 +236,11 @@ class TraceState:
             self.steps[index].status = 'stopped'
             self.steps[index].detail = '未收到工具结果；实际执行效果未知'
         self.pending.clear()
+        if self.compaction_step is not None:
+            step = self.steps[self.compaction_step]
+            step.status = 'stopped'
+            step.detail = '压缩调用未返回'
+            self.compaction_step = None
         labels = {'completed': '本轮结束', 'waiting': '本步已执行 · 等待继续', 'cancelled': '已停止', 'timeout': '本轮超时',
                   'limit': '达到轮次上限', 'error': '本轮出错'}
         title = labels.get(status, '本轮结束')

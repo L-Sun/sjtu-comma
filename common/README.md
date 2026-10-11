@@ -19,3 +19,5 @@
 第一课预置助教在 `app/learning_chat.py`，初始使用 `core/learning_workspace.py` 的三个课程工具。学生完成 tools.py 的工具声明与执行分发后，`core/learning_edit.py` 检查并加载接入，才开放 Edit；底层读写、版本校验和备份由 `core/course_editor.py` 提供。检查器用独立进程和保存的源码快照运行；`core/student_loader.py` 加载通过检查的同一版本。教学 Chat 不导入未完成的作业，教学 Chat 每次只请求一次模型，结果保存后等待手动继续；学生 Agent 接手后才自动循环。
 
 第一课仅三个教学阶段：Edit 接入、一起完成四个辅助函数、核心 Loop。Edit 保存后由 learning_workspace 在同一工具结果中附带离线 checks，不额外请求模型。学生只编写请求、工具遍历、结果回传和继续/结束的控制流程。
+
+`lesson_io.context_compaction` 为学生的可选压缩函数报告调用状态；不实现压缩策略、不发起模型请求。Trace 将其显示为独立的进度记录，不计入工具调用。

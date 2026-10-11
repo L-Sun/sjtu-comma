@@ -1,5 +1,26 @@
 """Provided lesson plumbing. The student still owns the model/tool loop."""
+import asyncio
+from functools import wraps
+
 from common.core.types import Event, ExercisePending, ToolResult
+
+
+def context_compaction(function):
+    """Display a student's compaction call without implementing its algorithm."""
+    @wraps(function)
+    async def tracked(messages, context):
+        context.emit(Event('status', {'text': '正在上下文压缩', 'context_compaction': 'running'}))
+        try:
+            result = await function(messages, context)
+        except asyncio.CancelledError:
+            context.emit(Event('status', {'text': '上下文压缩已停止', 'context_compaction': 'cancelled'}))
+            raise
+        except Exception:
+            context.emit(Event('status', {'text': '上下文压缩失败', 'context_compaction': 'error'}))
+            raise
+        context.emit(Event('status', {'text': '上下文压缩调用结束', 'context_compaction': 'completed'}))
+        return result
+    return tracked
 
 
 def image_messages(call, result):
