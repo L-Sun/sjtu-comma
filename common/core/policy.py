@@ -1,6 +1,7 @@
-"""Teacher-owned experimental controls: model-visible tools and observations.
+"""Teacher-owned experimental controls for Cua tools and observations.
 
-No DOM, shell, clipboard, file reading, browser JS, or unfiltered native tools.
+The Cua tool list excludes DOM, shell, clipboard, file reading and browser JS.
+The runtime separately provides local shell and file tools alongside Cua.
 This is an experimental boundary, not a sandbox against malicious student code.
 """
 from __future__ import annotations
@@ -19,7 +20,7 @@ FIELDS = {
     "scroll": {"pid", "window_id", "direction", "amount", "x", "y", "element_token", "delivery_mode"},
 }
 DESCRIPTIONS = {
-    "list_windows": "List open application windows to obtain pid and window_id. Ask the user to open the app if absent.",
+    "list_windows": "List open application windows to obtain pid and window_id. If the requested app is absent, use an available launch tool such as bash, then list windows again.",
     "get_window_state": "Observe one window. Observe before acting and again to verify results. Coordinates are window-local screenshot pixels.",
     "click": "Click an observed location. In vision mode use x,y and capture_id. A capture_id is SINGLE USE: observe again before each pixel click. In tree/hybrid use element_token matching the element label, never confuse element_index with displayed digit.",
     "type_text": "Type text into the selected window or observed element. Verify by observing again.",
