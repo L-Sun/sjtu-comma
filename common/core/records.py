@@ -3,8 +3,10 @@ import base64
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import re
+import tempfile
 import uuid
 
 from common.core.types import ToolResult
@@ -21,6 +23,18 @@ def redact(value, secret=""):
     if isinstance(value, (list, tuple)):
         return [redact(v, secret) for v in value]
     return value
+
+
+def saved_messages(messages, secret):
+    """Keep model/tool history; replace old screenshots with valid text content."""
+    result = redact(messages, secret)
+    for message in result:
+        if isinstance(message.get('content'), list):
+            message['content'] = [
+                {'type': 'text', 'text': '此前截图未保留在续聊上下文中；需要操作时请重新观察。'}
+                if part.get('type') == 'image_url' else part
+                for part in message['content']]
+    return result
 
 
 class Record:
@@ -63,5 +77,12 @@ class Record:
     def save(self) -> Path:
         self.path.mkdir(parents=True, exist_ok=True)
         p = self.path / "run.json"
-        p.write_text(json.dumps(redact(self.data, self.secret), ensure_ascii=False, indent=2), encoding="utf-8")
+        # A restart during a save must not leave half a JSON document behind.
+        fd, temporary = tempfile.mkstemp(prefix='.run-', dir=self.path)
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+                json.dump(redact(self.data, self.secret), stream, ensure_ascii=False, indent=2)
+            os.replace(temporary, p)
+        finally:
+            Path(temporary).unlink(missing_ok=True)
         return p.resolve()

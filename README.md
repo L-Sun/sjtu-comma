@@ -7,7 +7,7 @@
 ```text
 common/                       公共 Web、运行时、工具、实验题与记录
   core/llm.py                 已完成的 LLM 客户端，两节课共用
-lesson_01_agent/              先接入 Edit + 6 个辅助函数 + 学生实现 Agent loop
+lesson_01_agent/              先接入 Edit + 5 个辅助函数 + 学生实现 Agent loop
 lesson_02_computer_use/       Agent 标准实现 + Cua 接入作业
 docs/student/                作业说明与接口契约
 scripts/                     检查器、练习页、验收与打包
@@ -25,12 +25,34 @@ tests/                       框架与标准实现回归测试
 
 ## 启动
 
-安装 [uv](https://docs.astral.sh/uv/getting-started/installation/)，启动后点击左下角齿轮，在设置面板填写 API Key 和 Base URL（默认 OpenRouter，也可使用 OpenAI 兼容接口）。也可以复制 `.env.example` 为 `.env` 手动配置。
+先安装 uv，用它管理本项目的 Python 环境和依赖。按操作系统选择一条安装命令，来源见 [uv 官方安装文档](https://docs.astral.sh/uv/getting-started/installation/)。
+
+macOS / Linux，在终端运行：
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Windows，在 PowerShell 运行：
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+安装完成后关闭并重新打开终端，确认命令可用：
+
+```bash
+uv --version
+```
+
+进入项目根目录（包含 `pyproject.toml` 的目录），安装依赖并启动：
 
 ```bash
 uv sync --python 3.12
 uv run mini-agent --lesson 1 --open
 ```
+
+启动后点击左下角齿轮，在设置面板填写 API Key 和 Base URL（默认 OpenRouter，也可使用 OpenAI 兼容接口）。也可以复制 `.env.example` 为 `.env` 手动配置。
 
 浏览器地址 **http://127.0.0.1:8766**。`--lesson 1`、`--lesson 2` 切换课时，`--port` 更换端口，`--open` 自动打开浏览器。停止旧服务后再启动另一课时，或使用不同端口。默认第一课；作业尚未完成时使用教学 Chat，可列目录、读文件、讨论实现并检查代码。先手动保存 Edit 的接入代码；接通后 Chat 可以实际修改作业并检查。Loop 全部通过后下一轮切换到自己的 Agent，无需重启。「测试 LLM」直接使用已提供的客户端。
 
@@ -56,13 +78,15 @@ Enter 发送，Shift+Enter 换行，点击方形按钮停止，⌘/Ctrl+K 新对
 
 固定实验不会被清理。点击顶部「重置实验」会清空该实验的消息、模型上下文和执行过程，将运行记录移入 `runs/.trash/`，恢复原始提示词并保留当前模型与观察方式；重做前请先导出需要提交的记录。实验开始后如需换模型或观察方式，先重置再选择。重置不会撤销模型对本机文件或应用的操作；电脑实验仍需手动恢复应用初始状态。
 
-刷新页面会重新连接当前会话，不重复执行。服务重启后，磁盘记录显示为只读历史：普通会话可用相同设置新建，固定实验可重置后再做。普通会话切换模型或观察方式会新建会话并保留旧会话。同一服务一次执行一个任务；切换会话不会自动停止正在运行的任务。
+刷新页面会重新连接当前会话，不重复执行。普通会话按稳定 ID 保存，多轮消息只占一个侧栏入口；服务重启后恢复问答、模型消息和工具结果，可以直接续聊。每轮运行仍独立留档，在执行过程下方“导出各轮记录”中下载。旧版缺少会话 ID 的逐轮记录保留在默认折叠的“旧版逐轮记录”中，无法自动恢复原会话归属与完整上下文。固定实验重启后仍需重置再做；普通会话切换模型或观察方式会新建会话。同一服务一次执行一个任务；切换会话不会自动停止正在运行的任务。
+
+续聊保存的模型上下文会脱敏；先前截图替换为文字占位，原始观察图片仍在对应运行记录中。恢复后如需操作电脑，应重新观察。中断、取消或失败的回合保留可见消息，但不恢复可能不完整的工具调用上下文。
 
 设置面板支持配置 Base URL 和 API Key：先保存接口配置，再点「拉取模型」，按名称或 ID 搜索、勾选后点「添加选中」，模型会立即加入对话顶部的菜单。配置保存到本机 `.env`（`OPENROUTER_BASE_URL`、`OPENROUTER_API_KEY`、`OPENROUTER_MODELS`），后续运行生效，重启保留。Base URL 需包含接口前缀（例如 `https://openrouter.ai/api/v1` 或本机服务的 `http://localhost:1234/v1`），列表和对话分别请求其 `/models` 与 `/chat/completions`。已有 Key 只显示“已配置”，不会回传浏览器，也不会写进 localStorage；留空保持原值。正在执行的任务继续使用启动时的配置。深浅主题和跟随系统也在设置面板中。服务只监听 `127.0.0.1`，接口限制本机 Host、拒绝跨站访问并校验写操作 token。它是本机课堂工具，不提供公网账户服务。
 
 ## 两组实验
 
-**模型指令遵循与代码修改**：固定框架与题目，比较较早和较新的模型。默认提供 Gemini 2.5 Flash 与 Gemini 3.8 Flash，可在设置中搜索并添加其他模型，也可通过 `.env` 的 `OPENROUTER_MODELS` 修改，例如 GPT‑3.5 Turbo 与 GPT‑5.6 Sol。名称可用性和费用以 OpenRouter 为准；两次实验不足以代表整体能力排序。
+**模型指令遵循与代码修改**：固定框架与题目，比较较早和较新的模型。初始模型列表包含 Gemini 2.5 Flash、Gemini 3.8 Flash 和 GPT‑6.1 Sol（`openai/gpt-6.1-sol`），可在设置中搜索并添加其他模型，也可通过 `.env` 的 `OPENROUTER_MODELS` 修改。已有 `.env` 中的模型列表优先于初始列表。名称可用性和费用以所配置的接口为准；两次实验不足以代表整体能力排序。
 
 **Computer Use**：固定模型和任务，比较纯视觉、Accessibility Tree、混合模式。公共层强制限制输入信息和可用定位参数；每次比较前需手动恢复电脑应用状态。当前比较同时涉及观察信息与定位方式，不是严格的纯输入消融。
 

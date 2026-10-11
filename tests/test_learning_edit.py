@@ -179,7 +179,7 @@ async def test_chat_uses_connected_edit_to_complete_loop_then_student_takes_over
             assert last['runner'] == 'teaching_chat'  # no switch halfway through a turn
             assert (course / TARGET).read_text() == solution
             ready = (await client.post('/api/learning/check', json={})).json()
-            assert ready['ready'] and ready['passed'] == 7 and ready['edit']['ready']
+            assert ready['ready'] and ready['passed'] == 6 and ready['edit']['ready']
             student, record = await turn('由刚写好的 Loop 检查自己')
             assert student['runner'] == 'student' and student['source_version'] == ready['version']
             assert 'edit_course_file' in requests[9]

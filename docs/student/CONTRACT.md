@@ -1,6 +1,6 @@
 # 学生模块接口契约
 
-Web 工作台由教师完成。第一课先阅读 `lesson_01_agent/README.md`，先与教学 Chat 完成 `tools.py` 的 Edit 接入，再用接通的 Edit 完成 `agent.py` 中六个辅助函数与 `run_turn()` 循环；接口和事件格式已提供。未完成时由预置教学 Chat 提供 list_files、read_course_file、check_agent；它不依赖 Agent 作业函数；tools.py 的声明与分发检查通过后，下一轮才开放 edit_course_file。保存 tools.py 或 agent.py 后自动检查，通过后下一轮加载同一已检查版本的学生实现，保留对话。修改出错后返回教学 Chat。运行记录中的 runner 和 source_version 标明本轮实际实现及代码 SHA-256。本文供查阅接口细节。第二课填写 `cua.py`。不要通过修改 `common/core/policy.py` 绕过实验条件。
+Web 工作台由教师完成。第一课先阅读 `lesson_01_agent/README.md`，先与教学 Chat 完成 `tools.py` 的 Edit 接入，再用接通的 Edit 完成 `agent.py` 中五个辅助函数与 `run_turn()` 循环；接口和事件格式已提供。未完成时由预置教学 Chat 提供 list_files、read_course_file、check_agent；它不依赖 Agent 作业函数；tools.py 的声明与分发检查通过后，下一轮才开放 edit_course_file。保存 tools.py 或 agent.py 后自动检查，通过后下一轮加载同一已检查版本的学生实现，保留对话。修改出错后返回教学 Chat。运行记录中的 runner 和 source_version 标明本轮实际实现及代码 SHA-256。本文供查阅接口细节。第二课填写 `cua.py`。不要通过修改 `common/core/policy.py` 绕过实验条件。
 
 ## LLM（已提供，无需实现）
 
@@ -20,7 +20,7 @@ Web 工作台由教师完成。第一课先阅读 `lesson_01_agent/README.md`，
 
 ## Agent
 
-`run_turn(user_text, state, context)` 处理一个用户回合，可以包含多次模型调用。此函数也是学生作业（第 7 步）。与 Chat 一起实现循环，按 README 流程图调用六个辅助函数，并实现多工具、异常与停止条件。
+`run_turn(user_text, state, context)` 处理一个用户回合，可以包含多次模型调用。此函数也是学生作业（第 6 步）。与 Chat 一起实现循环，按 README 流程图调用五个辅助函数，并实现多工具、异常与停止条件。
 
 学生函数按约定追加 `state.messages`，无需自己设计状态管理。新对话和取消时框架清空它。`context` 提供：
 

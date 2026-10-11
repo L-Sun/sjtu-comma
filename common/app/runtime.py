@@ -12,7 +12,7 @@ from common.core.config import ROOT
 from common.core.shell_tools import ShellRunner
 from common.core.mcp_transport import connect_driver
 from common.core.policy import tools_for_mode, prepare_arguments, filter_result
-from common.core.records import Record, redact
+from common.core.records import Record, redact, saved_messages
 from common.core.experiments import grade
 from common.core.edit_tools import EditWorkspace, BASELINE, FILENAME
 from common.app import learning_chat
@@ -37,6 +37,7 @@ class Runtime:
         self.state = AgentState()
         self.last_record = None
         self.experiment_id = None
+        self.conversation = None
         self.root = root
         self.learning = learning
 
@@ -106,6 +107,8 @@ class Runtime:
         record.data["lesson"] = self.lesson
         if self.experiment_id:
             record.data["experiment_id"] = self.experiment_id
+        elif self.conversation:
+            record.data.update(self.conversation)
         self.last_record = record
         editor = None
         record.add("user", {"text": text})
@@ -204,6 +207,8 @@ class Runtime:
                 record.data["grade"] = record.data.pop("code_grade")
                 g = record.data["grade"]
                 report(Event("status", {"text": f"代码验收 {g['passed']}/{g['total']} · {g['reason']}"}))
+            if self.conversation and not self.experiment_id:
+                record.data['model_messages'] = saved_messages(self.state.messages, config.api_key)
             record.save()
 
     async def demo(self, text, config, report):

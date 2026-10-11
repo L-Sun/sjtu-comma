@@ -32,7 +32,7 @@ async def test_clear_history_keeps_current_context_and_survives_restart(tmp_path
     async with client_for(tmp_path, 'exercise', lesson=1) as (_, client):
         rows = (await client.get('/api/sessions')).json()['sessions']
         assert all(row['id'] not in {'run-'+first['run_id'], 'run-'+second['run_id']} for row in rows)
-        assert any(row['id'] == 'run-'+kept['run_id'] for row in rows)
+        assert any(row['id'] == current for row in rows)
 
 
 async def test_clear_saved_history_keeps_running_task_and_checks_requests(tmp_path):
@@ -40,7 +40,7 @@ async def test_clear_saved_history_keeps_running_task_and_checks_requests(tmp_pa
         sid = await create(client)
         saved = await finish(app, client, sid)
     async with client_for(tmp_path) as (app, client):
-        history = 'run-' + saved['run_id']
+        history = sid
         old_session = app.state.service.get(history)
         current = await create(client)
         await client.post(f'/api/sessions/{current}/messages', json={'text': '正在执行'})

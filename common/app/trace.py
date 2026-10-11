@@ -101,7 +101,7 @@ def result_summary(name, result):
         outcome = '全部通过，下轮使用我的 Agent' if data['ready'] else short(data.get('detail', '请继续完成作业'), 95)
         edit = data.get('edit')
         prefix = f"Edit {'已接入' if edit['ready'] else str(edit.get('passed', 0)) + '/2'} · Loop " if edit else ''
-        return 'done', f"{prefix}{data.get('passed', 0)}/{data.get('total', 7)} 步通过 · {outcome}"
+        return 'done', f"{prefix}{data.get('passed', 0)}/{data.get('total', 6)} 步通过 · {outcome}"
     if name == 'search_file' and 'matches' in data:
         lines = [str(m['line']) for m in data['matches'] if 'line' in m]
         if not lines:
@@ -245,13 +245,18 @@ class TraceState:
 
 
 def replay_trace(record):
+    return replay_records([record])
+
+
+def replay_records(records):
     state = TraceState()
-    for event in record.get('events', []):
-        if event['kind'] == 'user':
-            state.begin(event['data']['text'])
-        else:
-            state.feed(Event(event['kind'], event['data']))
-    state.finish(record)
+    for record in records:
+        for event in record.get('events', []):
+            if event['kind'] == 'user':
+                state.begin(event['data']['text'])
+            else:
+                state.feed(Event(event['kind'], event['data']))
+        state.finish(record)
     for step in state.steps:
         step.duration = None  # Old records have no per-event timestamps.
     return state

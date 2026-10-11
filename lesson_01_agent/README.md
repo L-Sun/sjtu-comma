@@ -4,7 +4,7 @@
 
 本课的目标是：**让模型提出工具调用，由 Python 执行工具，再把结果交给模型，直到模型给出回答。**
 
-先与教学 Chat 一起接通 [tools.py](tools.py) 中的 Edit，再用刚接入的编辑能力完成 [agent.py](agent.py) 中的 **6 个辅助函数，以及第 7 步 `run_turn()`：真正的 Agent loop**。函数名称和参数固定，循环体由你们一起实现。模型接口、工具、网页和图片转换已提供，不需要自己设计工程框架。
+先与教学 Chat 一起接通 [tools.py](tools.py) 中的 Edit，再用刚接入的编辑能力完成 [agent.py](agent.py) 中的 **5 个辅助函数，以及第 6 步 `run_turn()`：真正的 Agent loop**。函数名称和参数固定，循环体由你们一起实现。模型接口、工具、网页和图片转换已提供，不需要自己设计工程框架。
 
 ## 先与 Chat 接入 Edit，再用它一起写 Agent
 
@@ -16,7 +16,7 @@
 uv run mini-agent --lesson 1 --open
 ```
 
-在左下角设置 Base URL、API Key 和模型。初始显示 **教学 Chat · Edit 0/2 · Loop 0/7**。现在只能使用三个工具：
+在左下角设置 Base URL、API Key 和模型。初始显示 **教学 Chat · Edit 0/2 · Loop 0/6**。现在只能使用三个工具：
 
 | 工具 | 用途 |
 | --- | --- |
@@ -58,7 +58,7 @@ uv run python -m lesson_01_agent.check_edit
 1. Chat 读取实际代码，与你一起讨论实现。
 2. 用 `edit_course_file` 修改当前函数；右侧显示实际编辑调用，工具返回改动 diff。
 3. 用 `check_agent` 检查，依据结果一起修复，再继续下一步。
-4. 完成六个辅助函数与第 7 步 `run_turn()` 后，下一条消息由你们写出的 Agent 执行。这时它仍可使用你接入的 Edit 和检查工具来改进自己。
+4. 完成五个辅助函数与第 6 步 `run_turn()` 后，下一条消息由你们写出的 Agent 执行。这时它仍可使用你接入的 Edit 和检查工具来改进自己。
 
 编辑必须使用读取返回的 `version`，作为 `base_version`；`old_text` 是原文件文本，不包括显示的行号。版本过期、匹配不唯一、范围重叠或 Python 语法错误时，整批不写入，请重新读取并修正。成功写入会备份原文件到本机 `.course-edits/`，并返回备份路径。
 
@@ -121,7 +121,7 @@ messages = [
 | `context.system_prompt` | 放进第一条 `system` 消息的文字 |
 | `context.config.max_rounds` | 最多问模型几次，避免无限循环 |
 
-`context.emit(...)` 负责让网页显示进度，函数本身已提供；第 7 步实现循环时，按讲义中的格式调用它。
+`context.emit(...)` 负责让网页显示进度，函数本身已提供；第 6 步实现循环时，按讲义中的格式调用它。
 
 ### `reply` 和 `result`：模型回复与工具结果
 
@@ -150,25 +150,25 @@ messages = [
 add_user_message()             TODO 1：准备消息
         │
         ▼
-┌─→ ask_model()                TODO 2：问模型
+┌─→ await context.complete(...)  在 run_turn 中直接问模型
 │       │
 │       ▼
-│   remember_assistant_message()  TODO 3：存下完整回复
+│   remember_assistant_message()  TODO 2：存下完整回复
 │       │
 │       ├─ 没有 tool_calls → 结束本轮
 │       │
 │       └─ 有 tool_calls → 逐个处理：
-│               parse_tool_arguments()  TODO 4：把参数变成字典
-│               execute_tool()          TODO 5：真正执行工具
-│               make_tool_message()     TODO 6：把结果包装成消息
-│               messages.append(...)    第 7 步：自己放回历史
+│               parse_tool_arguments()  TODO 3：把参数变成字典
+│               execute_tool()          TODO 4：真正执行工具
+│               make_tool_message()     TODO 5：把结果包装成消息
+│               messages.append(...)    第 6 步：自己放回历史
 │       │
 └───────┘  带着新结果，再问一次模型
 ```
 
 在你要写的 `run_turn()` 中，用外层 `for` 控制模型请求次数，内层的 `for` 处理这一条回复中提出的所有工具调用。**不是执行完一个工具就结束，也不是有回复文字就一定结束：判断条件是 `reply.tool_calls` 是否为空。**
 
-你还要在循环中实现两个结束条件：模型没有请求工具，或达到轮数上限。工具报错要交回模型，停止信号则要向外传递。第 7 步会指导你和 Chat 一起完成这些分支。
+你还要在循环中实现两个结束条件：模型没有请求工具，或达到轮数上限。工具报错要交回模型，停止信号则要向外传递。第 6 步会指导你和 Chat 一起完成这些分支。
 
 ## 4. 只需要知道的 `async` / `await`
 
@@ -182,7 +182,7 @@ async def some_function(...):
 
 `await` 表示等这次调用完成，再把结果赋给 `result`。少写它，得到的就不是实际结果。
 
-`ask_model()`、`execute_tool()` 和 `run_turn()` 使用 `async def`，内部调用时要写 `await`。保留函数定义即可；不需要自己写 `asyncio.run()`、线程或并发逻辑。
+`execute_tool()` 和 `run_turn()` 使用 `async def`，内部调用时要写 `await`。保留函数定义即可；不需要自己写 `asyncio.run()`、线程或并发逻辑。
 
 函数定义中的 `: str`、`: dict`、`-> None` 等是类型提示，分别告诉你参数和返回值是什么。`-> None` 表示只修改列表，不需要返回东西。
 
@@ -213,29 +213,19 @@ uv run python -m lesson_01_agent.check 1
 
 检查器会测试空历史，以及已有历史时是否正确追加消息。
 
-### 第 2 步：`ask_model()`
-
-调用提供好的 `context.complete`，三个参数按顺序传入：`messages`、`context.tools`、`context.config`。等待调用完成，并返回它给你的 `ModelReply`。
-
-这里只问一次模型，不要自己再写循环；你将在 `run_turn()` 中实现重复调用。
-
-```bash
-uv run python -m lesson_01_agent.check 2
-```
-
-### 第 3 步：`remember_assistant_message()`
+### 第 2 步：`remember_assistant_message()`
 
 把 `reply.message` 整条追加到 `messages`，无需返回值。
 
 不要自己用 `reply.text` 重建一条消息。模型可能在同一个消息中放入 `tool_calls` 和其他需要保留的字段，丢掉它们会影响后续对话。
 
 ```bash
-uv run python -m lesson_01_agent.check 3
+uv run python -m lesson_01_agent.check 2
 ```
 
-前三个辅助函数写好后，还需要在 `run_turn()` 中把这些函数接起来，才能通过 `chat` 检查。继续完成工具相关函数，再在第 7 步把它们接成循环。普通聊天只是这个循环的无工具分支，教学 Chat 从一开始就可以使用。
+前两个辅助函数写好后，还需要在 `run_turn()` 中把这些函数接起来，才能通过 `chat` 检查。继续完成工具相关函数，再在第 6 步把它们接成循环。普通聊天只是这个循环的无工具分支，教学 Chat 从一开始就可以使用。
 
-### 第 4 步：`parse_tool_arguments()`
+### 第 3 步：`parse_tool_arguments()`
 
 模型返回的单个工具请求长这样：
 
@@ -259,20 +249,20 @@ call = {
 检查转换结果是不是 `dict`；如果不是，抛出 `ValueError`。无效 JSON 自带的异常直接抛出即可，你将在 `run_turn()` 中处理。不要使用 `eval()`。
 
 ```bash
-uv run python -m lesson_01_agent.check 4
+uv run python -m lesson_01_agent.check 3
 ```
 
-### 第 5 步：`execute_tool()`
+### 第 4 步：`execute_tool()`
 
 调用 `context.execute(name, arguments)`，等待完成后返回原来的 `ToolResult`。
 
 工具名和参数是模型刚刚给出的。不要把函数限定为 `calculate`，也不要自己在这里写乘法；同一个函数随后还会执行时间查询、文件搜索等工具。
 
 ```bash
-uv run python -m lesson_01_agent.check 5
+uv run python -m lesson_01_agent.check 4
 ```
 
-### 第 6 步：`make_tool_message()`
+### 第 5 步：`make_tool_message()`
 
 工具结果不能只显示在网页上，还需要交给模型。返回一条有三个键的消息：
 
@@ -282,23 +272,23 @@ uv run python -m lesson_01_agent.check 5
 | `tool_call_id` | 参数 `call_id`，原样保留 |
 | `content` | 将 `{"is_error": result.is_error, "text": result.text}` 转为 JSON 字符串 |
 
-转换字典为字符串使用 `json.dumps(..., ensure_ascii=False)`；`ensure_ascii=False` 让中文保持可读。它与第 4 步的 `json.loads()` 方向相反。
+转换字典为字符串使用 `json.dumps(..., ensure_ascii=False)`；`ensure_ascii=False` 让中文保持可读。它与第 3 步的 `json.loads()` 方向相反。
 
 `tool_call_id` 把工具结果和原来的请求对应起来。请求叫 `call-1`，结果就要写 `call-1`，不要写成工具名 `calculate`。
 
 成功与失败的结果都要返回。你写的 `run_turn()` 要把这条消息追加到历史；这个函数只负责创建并返回字典。
 
 ```bash
-uv run python -m lesson_01_agent.check 6
+uv run python -m lesson_01_agent.check 5
 ```
 
-### 第 7 步：和 Chat 一起实现 `run_turn()`
+### 第 6 步：和 Chat 一起实现 `run_turn()`
 
-**Agent loop 就在这个函数里，这部分也属于作业。** 不要只完成前六个函数。函数中的 `raise ExercisePending(...)` 需要由你们共同实现的循环替换；使用前面接通的 Edit 写入。
+**Agent loop 就在这个函数里，这部分也属于作业。** 不要只完成前五个函数。函数中的 `raise ExercisePending(...)` 需要由你们共同实现的循环替换；使用前面接通的 Edit 写入。
 
 先对 Chat 说：
 
-> 请读取 agent.py 中的 run_turn 和 README 第 7 步。和我一起推演“计算6×7”时，模型如何请求工具、工具结果如何回传、模型如何再回答。然后根据这个过程一起写循环，解释每个 for、if、return 的位置，用接通的 Edit 写入并检查。
+> 请读取 agent.py 中的 run_turn 和 README 第 6 步。和我一起推演“计算6×7”时，模型如何请求工具、工具结果如何回传、模型如何再回答。然后根据这个过程一起写循环，解释每个 for、if、return 的位置，用接通的 Edit 写入并检查。
 
 #### 围绕工具调用，实现一个完整循环
 
@@ -318,6 +308,14 @@ uv run python -m lesson_01_agent.check 6
         把与调用 ID 对应的工具结果放回历史
     所有工具结果已放回历史，再开始下一次模型请求
 ```
+
+在循环内部直接请求一次模型，拿到 `ModelReply`：
+
+```python
+reply = await context.complete(messages, context.tools, context.config)
+```
+
+`context.complete` 已经封装了 HTTP、鉴权与接口差异。这里直接传入当前历史、可用工具和配置，不需要再写一个转发函数。下一次循环会带着新追加的工具结果再次请求模型。
 
 请自己决定并解释 `for`、`if`、`return` 的位置，再让 Chat 帮你检查。不要因为 `reply.text` 有文字就退出：同一条回复可能既有文字，又有 `tool_calls`。也不要把 `return` 放在第一个工具执行完的位置。
 
@@ -343,16 +341,16 @@ context.emit(Event("tool_end", {"id": call["id"], "name": name, "result": result
 保存后检查自己写的循环：
 
 ```bash
-uv run python -m lesson_01_agent.check 7
+uv run python -m lesson_01_agent.check 6
 # 单独检查“没有工具请求就结束”与连续两轮消息保存：
 uv run python -m lesson_01_agent.check chat
-# 第 7 步也可以使用这个名字：
+# 第 6 步也可以使用这个名字：
 uv run python -m lesson_01_agent.check loop
 ```
 
 这一步会检查工具结果是否送回模型、多工具请求是否全部执行、参数错误和工具异常是否送回、轮数上限是否生效，以及停止是否能退出。可以让 Chat 调用 `check_agent`，读取失败原因后陪你修改。
 
-**只填六个辅助函数会显示 6/7，不能切换到“我的 Agent”。** 第 7 步和聊天检查也通过后，下一轮才会执行你们共同实现的 Agent loop。
+**只填五个辅助函数会显示 5/6，不能切换到“我的 Agent”。** 第 6 步和聊天检查也通过后，下一轮才会执行你们共同实现的 Agent loop。
 
 最后检查全部内容：
 

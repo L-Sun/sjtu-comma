@@ -9,11 +9,13 @@ from common.app.server import create_app
 from common.core.config import Config
 from common.core.records import redact
 from common.core.experiments import grade
+from tests.test_learning_chat import course
 
 
 @asynccontextmanager
-async def client_for(tmp_path, backend='demo', lesson=2):
-    app = create_app(backend, Config(api_key='test-secret', lesson=lesson), root=tmp_path)
+async def client_for(tmp_path, backend='demo', lesson=2, lesson_root=None):
+    options = {'lesson_root': lesson_root} if lesson_root is not None else {}
+    app = create_app(backend, Config(api_key='test-secret', lesson=lesson), root=tmp_path, **options)
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://127.0.0.1:8766') as client:
             bootstrap = (await client.get('/api/bootstrap')).json()
@@ -52,13 +54,13 @@ async def test_demo_full_http_flow(lesson, tmp_path):
         assert not (await client.get(f'/api/sessions/{fresh}')).json()['messages']
 
 
-async def test_lesson_checkpoints_and_llm_probe(tmp_path, monkeypatch):
+async def test_lesson_checkpoints_and_llm_probe(tmp_path, monkeypatch, course):
     from common.core.types import ModelReply
     async def complete(messages, tools, config):
         assert not tools or {t.name for t in tools} == {'list_files', 'read_course_file', 'check_agent'}
         return ModelReply({'role': 'assistant', 'content': 'LLM ready'})
     monkeypatch.setattr('common.core.llm.complete', complete)
-    async with client_for(tmp_path, 'exercise', lesson=1) as (app, client):
+    async with client_for(tmp_path / 'runs', 'exercise', lesson=1, lesson_root=course) as (app, client):
         sid = await create(client)
         result = await finish(app, client, sid, llm_only=True)
         assert result['status'] == 'completed' and result['messages'][-1]['text'] == 'LLM ready'
@@ -96,16 +98,16 @@ async def test_cancel_before_coroutine_starts(tmp_path):
         assert app.state.service.active_id is None
 
 
-async def test_history_reload_is_readonly_and_exports(tmp_path):
+async def test_history_reload_resumes_conversation_and_exports(tmp_path):
     async with client_for(tmp_path) as (app, client):
         sid = await create(client)
         run = (await finish(app, client, sid))['run_id']
     async with client_for(tmp_path) as (app, client):
         items = [s for s in (await client.get('/api/sessions')).json()['sessions'] if not s.get('experiment')]
-        assert items[0]['id'] == 'run-' + run and items[0]['readonly']
-        snapshot = (await client.get('/api/sessions/run-' + run)).json()
+        assert items[0]['id'] == sid and not items[0]['readonly']
+        snapshot = (await client.get(f'/api/sessions/{sid}')).json()
         assert len(snapshot['messages']) == 2
-        assert (await client.post('/api/sessions/run-' + run + '/messages', json={'text': 'bad'})).status_code == 409
+        assert len((await finish(app, client, sid, '继续'))['messages']) == 4
         assert (await client.get(f'/api/runs/{run}/files/../.env')).status_code == 404
         assert (await client.get(f'/api/runs/{run}/files/run.json')).status_code == 404
         assert (await client.get(f'/api/runs/{run}/export')).headers['content-disposition'].startswith('attachment;')

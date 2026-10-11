@@ -11,12 +11,16 @@ from common.app.server import create_app
 from common.core.config import ROOT, Config
 from common.core.learning_workspace import LearningWorkspace
 from common.core.types import ModelReply
+from tests.student_source import unfinished
 
 
 @pytest.fixture
 def course(tmp_path):
     for folder in ('common', 'lesson_01_agent'):
         shutil.copytree(ROOT / folder, tmp_path / folder, ignore=shutil.ignore_patterns('__pycache__'))
+    for name in ('agent.py', 'tools.py'):
+        path = tmp_path / 'lesson_01_agent' / name
+        path.write_text(unfinished(path.read_text()))
     (tmp_path / 'README.md').write_text('课程说明')
     (tmp_path / '.env').write_text('SECRET=never-read')
     return tmp_path
@@ -43,7 +47,7 @@ async def test_list_read_and_boundaries(course):
 async def test_checks_cache_errors_and_timeout(course, monkeypatch):
     workspace = LearningWorkspace(course)
     first = await workspace.refresh()
-    assert first['passed'] == 0 and len(first['checks']) == 8 and not first['ready']
+    assert first['passed'] == 0 and len(first['checks']) == 7 and not first['ready']
     original = workspace._check
     async def unexpected(source):
         raise AssertionError('Unchanged source must reuse checks')
@@ -93,7 +97,7 @@ async def test_tutor_reads_then_real_student_loop_checks_itself(course, monkeypa
             assert first['status'] == 'completed' and first['runner'] == 'teaching_chat'
             assert requests[0][1] == {'list_files', 'read_course_file', 'check_agent'}
             assert first['trace']['calls'] == 2
-            # Six filled helpers must still leave the actual run_turn as student work.
+            # Five filled helpers must still leave the actual run_turn as student work.
             import ast
             completed_source = (ROOT/'lesson_02_computer_use/agent.py').read_text()
             original_source = (course/'lesson_01_agent/agent.py').read_text()
@@ -103,14 +107,14 @@ async def test_tutor_reads_then_real_student_loop_checks_itself(course, monkeypa
             helper_code = '\n\n'.join(ast.get_source_segment(completed_source, node) for node in helpers)
             (course/'lesson_01_agent/agent.py').write_text(original_source + '\n' + helper_code)
             partial = (await client.post('/api/learning/check', json={})).json()
-            assert partial['passed'] == 6 and partial['total'] == 7
+            assert partial['passed'] == 5 and partial['total'] == 6
             assert not partial['ready'] and partial['runner'] == 'teaching_chat'
-            assert 'TODO 1.7' in partial['detail']
+            assert 'TODO 1.6' in partial['detail']
             source = completed_source
             source += '\n_original_run = run_turn\nasync def run_turn(text, state, context):\n    context.emit(Event("status", {"text": "STUDENT_SOURCE_EXECUTED"}))\n    await _original_run(text, state, context)\n'
             (course/'lesson_01_agent/agent.py').write_text(source)
             check = (await client.post('/api/learning/check', json={})).json()
-            assert check['ready'] and check['passed'] == 7
+            assert check['ready'] and check['passed'] == 6
             second = await turn('请检查你自己')
             assert second['status'] == 'completed' and second['runner'] == 'student'
             assert second['source_version'] == check['version'] != first['source_version']

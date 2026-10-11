@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -9,13 +10,14 @@ import re
 import uuid
 
 from common.app.runtime import Runtime
-from common.app.trace import TraceState, replay_trace, short
+from common.app.trace import TraceState, replay_trace, replay_records, short
 from common.core.records import redact
 from common.core.config import ROOT
 from common.core.experiments import TASKS
 from common.core.learning_workspace import LearningWorkspace
 
 RUN_ID = re.compile(r'^\d{8}T\d{6}-[a-f0-9]{8}$')
+SESSION_ID = re.compile(r'^[a-f0-9]{32}$')
 
 
 def now():
@@ -40,6 +42,7 @@ class Session:
         self.task = None
         self.busy = False
         self.readonly = record is not None
+        self.legacy = record is not None and not record.get('session_id')
         self.records = [record] if record else []
         self.status = record['status'] if record else 'ready'
         if experiment:
@@ -59,6 +62,7 @@ class Session:
         return {'id': self.id, 'title': self.title, 'created_at': self.created_at,
                 'settings': self.settings, 'status': self.status, 'busy': self.busy,
                 'readonly': self.readonly, 'grade': (self.record or {}).get('grade'),
+                'legacy': self.legacy,
                 'experiment': self.experiment.id if self.experiment else None}
 
     def public(self):
@@ -74,6 +78,8 @@ class Session:
                   'elapsed_seconds': (record or {}).get('elapsed_seconds'),
                   'code_file': (record or {}).get('code_file'),
                   'runner': (record or {}).get('runner'), 'source_version': (record or {}).get('source_version'),
+                  'runs': [{'id': item['id'], 'title': short(next((m['text'] for m in messages_from(item)
+                            if m['role'] == 'user'), '运行记录'), 36)} for item in self.records],
                   'initial_prompt': self.experiment.prompt if self.experiment else '',
                   'experiment_note': self.experiment.note if self.experiment else ''}
         return result
@@ -92,7 +98,9 @@ class SessionService:
             if task.id != 'free' and task.mode in ['chat', 'tools', 'computer'][:config.lesson + 1]:
                 session = Session(self, {'model': config.model, 'perception': 'vision', 'task_id': task.id}, experiment=task)
                 self.sessions[session.id] = session
-        # Old runs are read-only views. Never pretend their model context survived a restart.
+        conversations = {}
+        # New runs carry stable conversation IDs and a final model-history checkpoint.
+        # Legacy runs cannot safely be grouped by timestamps or similar text.
         for path in sorted(self.root.glob('*/run.json'), reverse=True):
             if not RUN_ID.fullmatch(path.parent.name) or path.is_symlink() or path.parent.is_symlink():
                 continue
@@ -100,9 +108,17 @@ class SessionService:
                 record = self.read_record(path.parent.name)
                 if record.get('mode') not in ['chat', 'tools', 'computer'][:self.config.lesson + 1]:
                     continue
+                if not isinstance(record.get('started_at'), str) or not isinstance(record.get('status'), str):
+                    continue
+                messages_from(record)  # Validate visible events before grouping them.
                 experiment = self.sessions.get(record.get('experiment_id'))
                 if experiment is not None:
                     experiment.records.append(record)
+                    continue
+                conversation_id = record.get('session_id')
+                if isinstance(conversation_id, str) and SESSION_ID.fullmatch(conversation_id):
+                    if record.get('lesson') == config.lesson:
+                        conversations.setdefault(conversation_id, []).append(record)
                     continue
                 settings = {key: record.get(key) for key in ('model', 'perception', 'task_id')}
                 settings['perception'] = settings['perception'] or 'vision'
@@ -110,7 +126,8 @@ class SessionService:
                 self.history['run-' + record['id']] = {
                     'id': 'run-' + record['id'], 'title': short(message, 46),
                     'created_at': record['started_at'], 'settings': settings,
-                    'status': record['status'], 'busy': False, 'readonly': True, 'grade': record.get('grade')}
+                    'status': record['status'], 'busy': False, 'readonly': True, 'legacy': True,
+                    'grade': record.get('grade')}
             except (OSError, ValueError, KeyError, TypeError):
                 continue
 
@@ -123,6 +140,25 @@ class SessionService:
             session.settings.update({key: session.records[-1][key] for key in ('model', 'perception')})
             session.status = session.records[-1]['status']
             session.readonly = True  # Reset before retrying; model context does not survive a restart.
+
+        for conversation_id, records in conversations.items():
+            records.sort(key=lambda record: (record['started_at'], record['id']))
+            first, latest = records[0], records[-1]
+            settings = {key: latest.get(key) for key in ('model', 'perception', 'task_id')}
+            settings['perception'] = settings['perception'] or 'vision'
+            session = Session(self, settings)
+            session.id = conversation_id
+            session.created_at = first.get('session_created_at', first['started_at'])
+            session.records = records
+            session.messages = [message for record in records for message in messages_from(record)]
+            session.title = first.get('session_title') or short(next(
+                (m['text'] for m in session.messages if m['role'] == 'user'), '历史对话'), 46)
+            session.status = 'cancelled' if latest['status'] == 'running' else latest['status']
+            session.trace = replay_records([*records[:-1], {**latest, 'status': session.status}])
+            # A crash or failed turn may leave unmatched tool calls. Never resume those.
+            if latest['status'] in {'completed', 'limit'} and isinstance(latest.get('model_messages'), list):
+                session.runtime.state.messages = deepcopy(latest['model_messages'])
+            self.sessions[session.id] = session
 
     def publish(self):
         self.revision += 1
@@ -162,7 +198,7 @@ class SessionService:
         if path.is_symlink() or path.parent.is_symlink() or path.stat().st_size > 32 * 1024 * 1024:
             raise FileNotFoundError('记录不可用。')
         record = json.loads(path.read_text(encoding='utf-8'))
-        if record.get('id') != run_id:
+        if not isinstance(record, dict) or record.get('id') != run_id:
             raise ValueError('记录 ID 不一致。')
         return redact(record, self.config.api_key)
 
@@ -176,6 +212,9 @@ class SessionService:
         self.active_id = session.id
         if not session.messages and not session.experiment:
             session.title = short(redact(text, self.config.api_key), 46)
+        if not session.experiment:
+            session.runtime.conversation = {'session_id': session.id, 'session_created_at': session.created_at,
+                                            'session_title': session.title}
         session.messages.append({'role': 'user', 'text': redact(text, self.config.api_key)})
         session.trace.begin(redact(text, self.config.api_key))
         config = self.config.copy(**{key: session.settings[key] for key in ('model', 'perception')})

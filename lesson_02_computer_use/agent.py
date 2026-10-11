@@ -1,6 +1,6 @@
 """第一课的标准实现，供第二课直接使用。
 
-函数接口与第一课一致，六个辅助函数和 run_turn 循环均已补全。
+函数接口与第一课一致，五个辅助函数和 run_turn 循环均已补全。
 """
 import asyncio
 import json
@@ -8,7 +8,7 @@ import json
 from common.core.types import AgentState, Event, ExercisePending, ModelReply, RunContext, ToolResult
 
 
-# ── 第一课六个函数的标准实现 ──────────────────────────────
+# ── 第一课五个函数的标准实现 ──────────────────────────────
 
 
 def add_user_message(messages: list[dict], user_text: str, system_prompt: str) -> None:
@@ -26,16 +26,6 @@ def add_user_message(messages: list[dict], user_text: str, system_prompt: str) -
     if not messages:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": user_text})
-
-
-async def ask_model(messages: list[dict], context: RunContext) -> ModelReply:
-    """已完成：调用已经提供的模型函数，并返回它的结果。
-
-    使用 context.complete，依次传入 messages、context.tools、context.config。
-    这是一个需要等待的调用，写法是 result = await 函数(...)。
-    返回得到的 ModelReply；不需要自己发 HTTP 请求或处理 API Key。
-    """
-    return await context.complete(messages, context.tools, context.config)
 
 
 def remember_assistant_message(messages: list[dict], reply: ModelReply) -> None:
@@ -94,12 +84,12 @@ def make_tool_message(call_id: str, result: ToolResult) -> dict:
 async def run_turn(user_text: str, state: AgentState, context: RunContext) -> None:
     """处理用户的一条消息：问模型 → 执行工具 → 再问模型，直到回答或达到上限。"""
     messages = state.messages
-    add_user_message(messages, user_text, context.system_prompt)  # 1. 准备消息
+    add_user_message(messages, user_text, context.system_prompt)  # 准备消息
 
     for step in range(context.config.max_rounds):
         context.emit(Event("status", {"text": f"模型请求 {step + 1}/{context.config.max_rounds}"}))
-        reply = await ask_model(messages, context)                # 2. 问模型
-        remember_assistant_message(messages, reply)               # 3. 记住回复
+        reply = await context.complete(messages, context.tools, context.config)  # 问模型
+        remember_assistant_message(messages, reply)  # 记住回复
 
         # 这些事件只负责更新网页，不影响模型做决定。
         context.emit(Event("usage", reply.usage))
@@ -117,8 +107,8 @@ async def run_turn(user_text: str, state: AgentState, context: RunContext) -> No
             context.emit(Event("tool_start", {"id": call["id"], "name": name,
                                                "arguments": call["function"]["arguments"]}))
             try:
-                arguments = parse_tool_arguments(call)           # 4. 读参数
-                result = await execute_tool(name, arguments, context)  # 5. 做动作
+                arguments = parse_tool_arguments(call)  # 读参数
+                result = await execute_tool(name, arguments, context)  # 做动作
             except (ExercisePending, asyncio.CancelledError):
                 # TODO 要明确提示学生；点击停止要真正退出，不假装是工具失败。
                 raise
@@ -126,7 +116,7 @@ async def run_turn(user_text: str, state: AgentState, context: RunContext) -> No
                 result = ToolResult(str(exc), is_error=True)
 
             context.emit(Event("tool_end", {"id": call["id"], "name": name, "result": result}))
-            messages.append(make_tool_message(call["id"], result))  # 6. 记住结果
+            messages.append(make_tool_message(call["id"], result))  # 记住结果
             pending_images.extend(image_messages(call, result))
 
         # 图片支持已写好，第一课不需要研究；第二课截图工具会用到。
