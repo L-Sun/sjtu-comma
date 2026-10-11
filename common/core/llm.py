@@ -10,8 +10,8 @@ from urllib.parse import urlsplit
 from common.core.types import ModelReply
 
 _parameters = {}
-MAX_RATE_LIMIT_RETRIES = 3
-MAX_RATE_LIMIT_WAIT = 60.0
+MAX_REQUEST_RETRIES = 3
+MAX_RETRY_WAIT = 60.0
 
 
 def retry_after_seconds(value):
@@ -29,32 +29,42 @@ def retry_after_seconds(value):
     return max(0.0, seconds) if math.isfinite(seconds) and seconds >= 0 else None
 
 
-def is_rate_limited(response):
-    if response.status_code == 429:
-        return True
+def retryable_status(response):
+    if response.status_code in (429, 503):
+        return response.status_code
     if response.status_code != 200:
-        return False
+        return None
     # Non-streaming providers can report an error after sending HTTP 200.
     try:
         data = response.json()
     except ValueError:
-        return False
+        return None
     error = data.get("error") if isinstance(data, dict) else None
-    return isinstance(error, dict) and error.get("code") in (429, "429")
+    if isinstance(error, dict):
+        for status in (429, 503):
+            if error.get("code") in (status, str(status)):
+                return status
+    return None
 
 
-async def request_with_rate_limit_retry(client, method, url, **kwargs):
-    """Retry only explicit rate-limit rejections, never the Agent/tool loop."""
+async def request_with_retry(client, method, url, **kwargs):
+    """Retry explicit 429/503 responses, never the Agent/tool loop."""
     waited = 0.0
-    for attempt in range(MAX_RATE_LIMIT_RETRIES + 1):
+    for attempt in range(MAX_REQUEST_RETRIES + 1):
         response = await client.request(method, url, **kwargs)
-        if not is_rate_limited(response):
+        status = retryable_status(response)
+        if status is None:
             return response
         delay = retry_after_seconds(response.headers.get("Retry-After"))
         if delay is None:
             delay = 2 ** (attempt + 1) + random.uniform(0, 1)
-        if attempt == MAX_RATE_LIMIT_RETRIES or waited + delay > MAX_RATE_LIMIT_WAIT:
+        if attempt == MAX_REQUEST_RETRIES or waited + delay > MAX_RETRY_WAIT:
             # Never echo provider bodies, which may contain prompts or secrets.
+            if status == 503:
+                raise RuntimeError(
+                    "模型服务暂不可用（HTTP 503），已停止自动重试。"
+                    "请稍后再试，或切换服务商或模型。"
+                )
             raise RuntimeError(
                 "模型接口限流（429），已停止自动重试。请稍后再试；"
                 "免费模型请检查每日额度，上游限流可切换服务商或模型。"
@@ -67,7 +77,7 @@ async def request_with_rate_limit_retry(client, method, url, **kwargs):
 async def model_parameters(client, model, base_url="https://openrouter.ai/api/v1"):
     cache_key = (base_url, model)
     if cache_key not in _parameters:
-        response = await request_with_rate_limit_retry(client, "GET", base_url.rstrip("/") + "/models")
+        response = await request_with_retry(client, "GET", base_url.rstrip("/") + "/models")
         response.raise_for_status()
         _parameters.update({(base_url, m["id"]): set(m["supported_parameters"]) for m in response.json()["data"] if "supported_parameters" in m})
     return _parameters.get(cache_key)
@@ -99,7 +109,7 @@ async def complete(messages, tools, config):
         options = (request_parameters(config, await model_parameters(client, config.model, base_url))
                    if openrouter else {"max_tokens": config.max_tokens})
         body.update(options)
-        response = await request_with_rate_limit_retry(
+        response = await request_with_retry(
             client, "POST", base_url + "/chat/completions", json=body, headers=headers)
     if response.status_code != 200:
         # Provider response bodies can echo request content; don't print them.

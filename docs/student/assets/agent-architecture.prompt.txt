@@ -1,0 +1,53 @@
+Generator: built-in image_gen
+Style reference: https://docs.unity3d.com/Packages/com.unity.entities@0.9/manual/images/ECSBlockDiagram.png
+The local reference path in the prompt was a temporary copy of this official Unity illustration.
+
+Use case: infographic-diagram.
+Create one polished Chinese educational architecture diagram for the README of COMMA · Mini Agent Lab, a Python agent course.
+Reference image: /tmp/comma-unity-ecs-reference.png is STYLE REFERENCE ONLY, the Unity ECS concepts illustration. Borrow its flat pastel rectangular data blocks, peach rounded grouping containers, thin dark outlines, black typography, and repeated colored chevrons for directional data movement. Draw ORIGINAL agent architecture, do not copy Unity labels or logo. White opaque background, no textures, no shadows, no 3D, no decorative illustrations.
+Landscape canvas approximately 1800 x 1250 pixels. Large crisp Chinese sans serif text. Generous margins, clean vector-like precision, readable when embedded at 1000px width. Faithful controlled labels, avoid tiny annotations.
+
+Title top left: "Agent 如何工作"
+Subtitle: "COMMA · Mini Agent Lab"
+Main diagram is three columns, with an LLM block ABOVE the center column. Keep every label inside canvas, ensure arrows do not cross labels.
+
+LEFT COLUMN (pastel peach rounded group):
+Header "消息历史" and "AgentState.messages".
+Four vertically stacked touching pastel rectangular rows, each separately outlined, labels:
+"system · 系统提示" (pale blue)
+"user · 用户输入" (pale yellow)
+"assistant · 完整模型回复" (pale green)
+"tool · 工具执行结果" (pale purple)
+At bottom inside group: "成功与错误都写入历史".
+External small header above left group "用户 / Web 工作台" with downward arrow into message history.
+
+CENTER COLUMN:
+Above center is a light blue rectangle "LLM 客户端 · 已提供" with small second line "common/core/llm.py".
+Below is a large dusty rose grouping container with label "Agent Loop" and "run_turn()".
+Inside stack four clear numbered steps:
+"1  请求模型，保存完整回复"
+"2  检查 tool_calls"
+"3  逐个执行全部工具调用"
+"4  追加结果，进入下一轮"
+Use thin arrows between steps, a small exit branch from step 2 ending in "无工具调用 → 结束本轮" within the container, well spaced.
+Bottom note within central container: "最多 max_rounds 轮".
+Two parallel clearly labeled arrows between the upper LLM block and Agent Loop: upward "messages + tools", downward "ModelReply".
+Connect LEFT message history to CENTER loop with blue right-pointing chevrons labeled "读取".
+Connect CENTER loop back to LEFT history using purple left-pointing chevrons on a separate lower track labeled "回写".
+
+RIGHT COLUMN (pastel peach rounded group):
+Header "工具执行" and "context.execute".
+Three stacked rectangular pastel blocks:
+light yellow block "基础工具" / "计算 · 时间"
+light green block "文件与命令" / "search_file · read_file · edit · bash"
+light blue block "Computer Use · 第二课接入" / "cua.py → MCP → Cua Driver" / "截图 · 可访问性树 · 电脑操作"
+Connect CENTER loop to RIGHT tools using yellow rightward chevrons labeled "名称 + 参数".
+Connect RIGHT tools back to CENTER loop using blue leftward chevrons on a distinct lower track labeled "ToolResult".
+Under the tool group: "文本 · 图片 · 错误状态".
+
+BOTTOM of whole figure:
+One neutral light gray band across the diagram, separated from main flow, title "公共框架 · 已提供", second line "lesson_io：网页事件、用量、错误转换与图片回传".
+Below that two horizontally aligned small course responsibility callouts:
+"第一课：接入 Edit → 四个辅助函数 → Agent Loop"
+"第二课：提供 Agent 标准实现 → 接入 Cua"
+Do not imply ECS is the runtime architecture; borrow only the graphic style. The loop is owned by student Python code, not the LLM or lesson_io. Ensure flow arrow directions, spelling and all Chinese text are correct. No Unity branding.

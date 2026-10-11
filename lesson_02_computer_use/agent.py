@@ -66,7 +66,7 @@ def make_tool_message(call_id: str, result: ToolResult) -> dict:
 
 
 async def run_turn(user_text: str | None, state: AgentState, context: RunContext) -> None:
-    """第一课的核心循环标准实现；网页展示、错误与图片由 lesson_io 提供。"""
+    """第一课的核心循环标准实现"""
     # 已提供：复用历史；有新输入时只追加一次，点击继续时不追加。
     messages = state.messages
     if not messages:

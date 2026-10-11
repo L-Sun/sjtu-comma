@@ -1,4 +1,4 @@
-"""Exercise rate-limit recovery through the real client without paid requests."""
+"""Exercise 429/503 recovery through the real client without paid requests."""
 import asyncio
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
@@ -51,10 +51,11 @@ CONFIG = Config(base_url='https://compatible.test/v1', api_key='secret-key')
 MESSAGES = [{'role': 'user', 'content': 'private prompt'}]
 
 
-async def test_retry_after_then_backoff_preserves_request_and_usage(transport):
+@pytest.mark.parametrize('status', [429, 503])
+async def test_retry_after_then_backoff_preserves_request_and_usage(transport, status):
     requests, waits = transport([
-        httpx.Response(429, headers={'Retry-After': '3'}),
-        httpx.Response(429, headers={'Retry-After': 'invalid'}), success(),
+        httpx.Response(status, headers={'Retry-After': '3'}),
+        httpx.Response(status, headers={'Retry-After': 'invalid'}), success(),
     ])
     reply = await llm.complete(MESSAGES, [], CONFIG)
     assert reply.text == 'done' and reply.usage['completion_tokens'] == 1
@@ -65,11 +66,14 @@ async def test_retry_after_then_backoff_preserves_request_and_usage(transport):
     assert MESSAGES == [{'role': 'user', 'content': 'private prompt'}]
 
 
-async def test_openrouter_catalog_and_body_rate_limit(transport):
+@pytest.mark.parametrize('status', [429, 503])
+@pytest.mark.parametrize('string_code', [False, True])
+async def test_openrouter_catalog_and_body_retry(transport, status, string_code):
     requests, waits = transport([
-        httpx.Response(429),
+        httpx.Response(status),
         httpx.Response(200, json={'data': [{'id': CONFIG.model, 'supported_parameters': ['max_tokens']}]}),
-        httpx.Response(200, json={'error': {'code': 429, 'message': 'private prompt'}}),
+        httpx.Response(200, json={'error': {'code': str(status) if string_code else status,
+                                          'message': 'private prompt'}}),
         success(),
     ])
     reply = await llm.complete(MESSAGES, [], Config())
@@ -79,18 +83,29 @@ async def test_openrouter_catalog_and_body_rate_limit(transport):
     assert body['provider']['require_parameters'] and 'temperature' not in body
 
 
-async def test_retry_exhaustion_is_bounded_and_does_not_echo_response(transport):
-    requests, waits = transport([httpx.Response(429, text='secret-key private prompt')] * 4)
-    with pytest.raises(RuntimeError, match='限流（429）') as error:
+@pytest.mark.parametrize('status,description', [(429, '限流（429）'), (503, '服务暂不可用（HTTP 503）')])
+async def test_retry_exhaustion_is_bounded_and_does_not_echo_response(transport, status, description):
+    requests, waits = transport([httpx.Response(status, text='secret-key private prompt')] * 4)
+    with pytest.raises(RuntimeError, match=description) as error:
         await llm.complete(MESSAGES, [], CONFIG)
     assert len(requests) == 4 and waits == [2.5, 4.5, 8.5]
     assert 'secret-key' not in str(error.value) and 'private prompt' not in str(error.value)
+    if status == 503:
+        assert 'API Key' not in str(error.value)
+
+
+async def test_mixed_retryable_errors_share_one_retry_budget(transport):
+    requests, waits = transport([httpx.Response(status) for status in [503, 429, 503, 429]])
+    with pytest.raises(RuntimeError, match='429'):
+        await llm.complete(MESSAGES, [], CONFIG)
+    assert len(requests) == 4 and waits == [2.5, 4.5, 8.5]
 
 
 @pytest.mark.parametrize('delays,expected', [(['86400'], []), (['40', '30'], [40])])
-async def test_wait_budget_never_shortens_provider_delay(transport, delays, expected):
-    requests, waits = transport([httpx.Response(429, headers={'Retry-After': value}) for value in delays])
-    with pytest.raises(RuntimeError, match='429'):
+@pytest.mark.parametrize('status', [429, 503])
+async def test_wait_budget_never_shortens_provider_delay(transport, delays, expected, status):
+    requests, waits = transport([httpx.Response(status, headers={'Retry-After': value}) for value in delays])
+    with pytest.raises(RuntimeError, match=str(status)):
         await llm.complete(MESSAGES, [], CONFIG)
     assert waits == expected and len(requests) == len(delays)
 
@@ -106,7 +121,7 @@ def test_retry_after_http_date():
     assert llm.retry_after_seconds('0') == 0
 
 
-@pytest.mark.parametrize('status', [400, 401, 402, 403, 500, 503])
+@pytest.mark.parametrize('status', [400, 401, 402, 403, 500])
 async def test_other_http_errors_are_not_retried(transport, status):
     requests, waits = transport([httpx.Response(status, text='secret-key')])
     with pytest.raises(RuntimeError, match=f'HTTP {status}'):
@@ -121,8 +136,9 @@ async def test_transport_timeout_is_not_retried(transport):
     assert len(requests) == 1 and not waits
 
 
-async def test_cancel_during_backoff_stops_requests(transport, monkeypatch):
-    requests, _ = transport([httpx.Response(429), success()])
+@pytest.mark.parametrize('status', [429, 503])
+async def test_cancel_during_backoff_stops_requests(transport, monkeypatch, status):
+    requests, _ = transport([httpx.Response(status), success()])
     sleeping = asyncio.Event()
 
     async def sleep(delay):
@@ -138,12 +154,13 @@ async def test_cancel_during_backoff_stops_requests(transport, monkeypatch):
     assert len(requests) == 1
 
 
-async def test_retry_does_not_reexecute_completed_tool(transport):
+@pytest.mark.parametrize('status', [429, 503])
+async def test_retry_does_not_reexecute_completed_tool(transport, status):
     call = {'id': 'call-1', 'type': 'function', 'function': {'name': 'test', 'arguments': '{}'}}
     requests, waits = transport([
         httpx.Response(200, json={'choices': [{'message': {
             'role': 'assistant', 'content': None, 'tool_calls': [call]}, 'finish_reason': 'tool_calls'}]}),
-        httpx.Response(429), success(),
+        httpx.Response(status), success(),
     ])
     executed = []
 
