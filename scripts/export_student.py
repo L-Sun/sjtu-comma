@@ -10,7 +10,7 @@ def export(destination=None):
     destination.parent.mkdir(parents=True, exist_ok=True)
     paths = [ROOT / x for x in ["README.md", "THIRD_PARTY_NOTICES.md", "pyproject.toml", "uv.lock", ".env.example", ".gitignore",
                               "scripts/practice_server.py", "scripts/check_student.py"]]
-    for folder in ["common", "lesson_01_llm", "lesson_02_agent", "lesson_03_computer_use", "docs/student"]:
+    for folder in ["common", "lesson_01_agent", "lesson_02_computer_use", "docs/student"]:
         paths.extend(p for p in (ROOT / folder).rglob("*") if p.is_file() and "__pycache__" not in p.parts)
     paths.extend(ROOT / x for x in ["tests/__init__.py", "tests/test_policy.py"])
     with ZipFile(destination, "w", ZIP_DEFLATED) as z:

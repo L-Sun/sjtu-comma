@@ -29,7 +29,11 @@ def action_title(name, args):
     if name == 'search_file':
         suffix = f" · 第 {args['after_line']} 行之后" if args.get('after_line') else ''
         return f"搜索「{short(args.get('query', ''), 50)}」", path + suffix
-    if name == 'read_file':
+    if name == 'list_files':
+        return '列出课程文件', short(args.get('path', '.'), 40)
+    if name == 'check_agent':
+        return '检查自己的 Agent', '辅助函数 · 自己的 Agent loop'
+    if name in {'read_file', 'read_course_file'}:
         return f"读取第 {args.get('start_line', 1)}–{args.get('end_line', 120)} 行", path
     if name == 'edit':
         return f"修改 {len(args.get('edits', []))} 处代码", path + ' · 整批校验后写入'
@@ -89,6 +93,13 @@ def result_summary(name, result):
         if data:
             return 'error', short(data.get('hint') or data.get('error') or '工具返回错误，请检查参数')
         return 'error', short(text or '工具执行失败', 150)
+    if name == 'list_files' and 'entries' in data:
+        return 'done', f"{data.get('path', '.')} · 返回 {len(data['entries'])}/{data.get('total', '?')} 项"
+    if name == 'read_course_file' and 'content' in data:
+        return 'done', f"{data.get('path', '')} · 已读取 {len(data['content'].splitlines())} 行"
+    if name == 'check_agent' and 'ready' in data:
+        outcome = '全部通过，下轮使用我的 Agent' if data['ready'] else short(data.get('detail', '请继续完成作业'), 95)
+        return 'done', f"{data.get('passed', 0)}/{data.get('total', 7)} 步通过 · {outcome}"
     if name == 'search_file' and 'matches' in data:
         lines = [str(m['line']) for m in data['matches'] if 'line' in m]
         if not lines:

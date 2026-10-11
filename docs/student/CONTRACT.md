@@ -1,11 +1,12 @@
 # 学生模块接口契约
 
-Web 工作台 由教师完成。请只修改 当前 `lesson_*/`，不要通过修改 `common/core/policy.py` 绕过实验条件。
+Web 工作台由教师完成。第一课先阅读 `lesson_01_agent/README.md`，和教学 Chat 一起完成 `agent.py` 中六个辅助函数与 `run_turn()` 循环；接口和事件格式已提供。未完成时由预置教学 Chat 提供 list_files、read_course_file、check_agent；它不依赖作业函数。保存 agent.py 后自动检查，通过后下一轮加载同一已检查版本的学生实现，保留对话。修改出错后返回教学 Chat。运行记录中的 runner 和 source_version 标明本轮实际实现及代码 SHA-256。本文供查阅接口细节。第二课填写 `cua.py`。不要通过修改 `common/core/policy.py` 绕过实验条件。
 
-## LLM
+## LLM（已提供，无需实现）
 
-`complete(messages, tools, config) -> ModelReply` 是**一次**模型请求。
+`common/core/llm.py` 中的 `complete(messages, tools, config) -> ModelReply` 是**一次**模型请求。通过 `context.complete()` 使用。
 
+- `config.base_url`：OpenAI 兼容接口前缀，来自设置面板。
 - `config.api_key`：密钥；不打印、不写日志。
 - `config.model`、`config.max_tokens`：模型 ID 和输出上限。
 - `messages`：OpenRouter 消息数组，包含 system/user/assistant/tool。
@@ -19,16 +20,16 @@ Web 工作台 由教师完成。请只修改 当前 `lesson_*/`，不要通过�
 
 ## Agent
 
-`run_turn(user_text, state, context)` 处理一个用户回合，可以包含多次模型调用。
+`run_turn(user_text, state, context)` 处理一个用户回合，可以包含多次模型调用。此函数也是学生作业（第 7 步）。与 Chat 一起实现循环，按 README 流程图调用六个辅助函数，并实现多工具、异常与停止条件。
 
-`state.messages` 归学生管理。新对话和取消时框架清空它。`context` 提供：
+学生函数按约定追加 `state.messages`，无需自己设计状态管理。新对话和取消时框架清空它。`context` 提供：
 
 | 属性 | 用途 |
 | --- | --- |
 | `system_prompt` | 首条 system 消息内容 |
 | `config` | 当前模型、模式、轮数上限 |
 | `tools` | 此次允许的工具定义 |
-| `complete(messages, tools, config)` | 学生自己实现的模型调用函数 |
+| `complete(messages, tools, config)` | 教师已提供的模型调用函数 |
 | `execute(name, arguments)` | 已检查工具白名单/参数的执行入口 |
 | `emit(Event(...))` | 通知界面，不用接触 HTTP 或浏览器 DOM |
 
@@ -70,13 +71,13 @@ A5 的 `context.tools` 自动包含以下工具，均通过通用的 `context.ex
 
 ## 教师提供的 Bash 工具
 
-Lesson 02/03 的 `context.tools` 还包含 `bash(command, cwd?, timeout_seconds=30)`，经 `context.execute` 调用。名称是统一接口：macOS 实际运行 zsh，Linux 运行 Bash，Windows 优先 pwsh、其次 powershell；具体平台、shell、默认目录在工具 description 中。模型应依照该说明生成语法，不根据工具名假定 Bash。
+Lesson 01/02 的 `context.tools` 还包含 `bash(command, cwd?, timeout_seconds=30)`，经 `context.execute` 调用。名称是统一接口：macOS 实际运行 zsh，Linux 运行 Bash，Windows 优先 pwsh、其次 powershell；具体平台、shell、默认目录在工具 description 中。模型应依照该说明生成语法，不根据工具名假定 Bash。
 
 `command` 最多16000字符，超时1—120秒，非交互执行且每次是新进程。`cwd` 可为绝对路径或相对于工具默认目录的路径；默认目录为项目根，A5 为当轮代码副本。普通本机权限，没有目录隔离；A5 题目仍要求通过 edit 完成指定补丁。
 
 `ToolResult.text` 是 JSON，字段为 `platform`、`shell`、`cwd`、`exit_code`、`stdout`、`stderr`、`timed_out`、`stdout_truncated`、`stderr_truncated`，成功启动的命令另有 `duration_seconds`。非零退出、超时和启动失败会设置 `is_error=True`；启动失败的 exit_code 为 null。输出按 UTF-8 解码，每个流最多16KiB。工具不要求 stdin 输入，不加载用户 shell 配置，不延续上一条命令的变量和 cd 状态。
 
-界面复用 `tool_start`/`tool_end` 显示简化命令和退出结果；不要求学生写 shell 或 UI 特例。Lesson 01 不提供工具；Lesson 03 保留 bash 并叠加 Cua。电脑实验需检查模型是否按要求仅使用 Cua 操作界面。
+界面复用 `tool_start`/`tool_end` 显示简化命令和退出结果；不要求学生写 shell 或 UI 特例。Lesson 01 提供基础工具；Lesson 02 保留 bash 并叠加 Cua。电脑实验需检查模型是否按要求仅使用 Cua 操作界面。
 
 ## Cua
 

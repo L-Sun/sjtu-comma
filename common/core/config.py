@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parents[2]
 @dataclass
 class Config:
     api_key: str = field(default="", repr=False)
-    lesson: int = 3
+    base_url: str = "https://openrouter.ai/api/v1"
+    lesson: int = 2
     model: str = "google/gemini-2.5-flash"
     models: tuple[str, ...] = ("google/gemini-2.5-flash", "google/gemini-3.8-flash")
     max_rounds: int = 24
@@ -25,7 +26,7 @@ class Config:
     @property
     def mode(self):
         # Legacy record label, derived solely from the selected lesson.
-        return ('chat', 'tools', 'computer')[self.lesson - 1]
+        return ('tools', 'computer')[self.lesson - 1]
 
     def copy(self, **kwargs):
         return replace(self, **kwargs)
@@ -43,6 +44,7 @@ def load_config() -> Config:
         driver = str(candidate) if candidate.exists() else "cua-driver"
     return Config(
         api_key=os.getenv("OPENROUTER_API_KEY", ""), model=model,
+        base_url=os.getenv("OPENROUTER_BASE_URL", defaults.base_url).rstrip("/"),
         models=tuple(x.strip() for x in models if x.strip()),
         max_rounds=int(os.getenv("MAX_ROUNDS", "24")),
         turn_timeout=float(os.getenv("TURN_TIMEOUT_SECONDS", "180")), driver=driver,

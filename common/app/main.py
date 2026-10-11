@@ -9,8 +9,8 @@ from common.core.config import load_config
 
 def main(lesson=None):
     parser = argparse.ArgumentParser(description="COMMA Mini Agent Lab · 本机 Web 界面")
-    parser.add_argument('--lesson', type=int, choices=[1, 2, 3], default=lesson or 1,
-                        help='课时：1 LLM 接口；2 Agent 循环；3 Computer Use')
+    parser.add_argument('--lesson', type=int, choices=[1, 2], default=lesson or 1,
+                        help='课时：1 Agent 循环；2 Computer Use')
     parser.add_argument('--demo', action='store_true', help='模拟界面，不调用模型或电脑')
     parser.add_argument('--port', type=int, default=8766, help='本机端口（默认 8766）')
     parser.add_argument('--open', action='store_true', help='自动打开浏览器')

@@ -11,6 +11,9 @@ import uuid
 from common.app.runtime import Runtime
 from common.app.trace import TraceState, replay_trace, short
 from common.core.records import redact
+from common.core.config import ROOT
+from common.core.experiments import TASKS
+from common.core.learning_workspace import LearningWorkspace
 
 RUN_ID = re.compile(r'^\d{8}T\d{6}-[a-f0-9]{8}$')
 
@@ -25,19 +28,24 @@ def messages_from(record):
 
 
 class Session:
-    def __init__(self, service, settings, *, record=None):
+    def __init__(self, service, settings, *, record=None, experiment=None):
         self.settings = settings
+        self.experiment = experiment
         self.id = 'run-' + record['id'] if record else uuid.uuid4().hex
         self.created_at = record['started_at'] if record else now()
         self.title = '新对话'
         self.messages = []
         self.trace = TraceState()
-        self.runtime = Runtime(service.backend, root=service.root, lesson=service.config.lesson)
+        self.runtime = Runtime(service.backend, root=service.root, lesson=service.config.lesson, learning=service.learning)
         self.task = None
         self.busy = False
         self.readonly = record is not None
         self.records = [record] if record else []
         self.status = record['status'] if record else 'ready'
+        if experiment:
+            self.id = f'experiment-{service.config.lesson}-{experiment.id}'
+            self.title = experiment.title
+            self.runtime.experiment_id = self.id
         if record:
             self.messages = messages_from(record)
             self.title = short(next((m['text'] for m in self.messages if m['role'] == 'user'), '历史记录'), 46)
@@ -50,7 +58,8 @@ class Session:
     def metadata(self):
         return {'id': self.id, 'title': self.title, 'created_at': self.created_at,
                 'settings': self.settings, 'status': self.status, 'busy': self.busy,
-                'readonly': self.readonly, 'grade': (self.record or {}).get('grade')}
+                'readonly': self.readonly, 'grade': (self.record or {}).get('grade'),
+                'experiment': self.experiment.id if self.experiment else None}
 
     def public(self):
         record = self.record
@@ -63,25 +72,37 @@ class Session:
                   'run_id': record['id'] if record else None,
                   'images': [{'name': name, 'url': f"/api/runs/{record['id']}/files/{name}"} for name in images],
                   'elapsed_seconds': (record or {}).get('elapsed_seconds'),
-                  'code_file': (record or {}).get('code_file')}
+                  'code_file': (record or {}).get('code_file'),
+                  'runner': (record or {}).get('runner'), 'source_version': (record or {}).get('source_version'),
+                  'initial_prompt': self.experiment.prompt if self.experiment else '',
+                  'experiment_note': self.experiment.note if self.experiment else ''}
         return result
 
 
 class SessionService:
-    def __init__(self, backend, config, root: Path):
+    def __init__(self, backend, config, root: Path, *, lesson_root=None):
         self.backend, self.config, self.root = backend, config, root.resolve()
+        self.learning = LearningWorkspace(lesson_root or ROOT) if config.lesson == 1 and backend == "exercise" else None
         self.sessions = {}
         self.history = {}
         self.active_id = None
         self.revision = 0
         self.changed = asyncio.Event()
+        for task in TASKS:
+            if task.id != 'free' and task.mode in ['chat', 'tools', 'computer'][:config.lesson + 1]:
+                session = Session(self, {'model': config.model, 'perception': 'vision', 'task_id': task.id}, experiment=task)
+                self.sessions[session.id] = session
         # Old runs are read-only views. Never pretend their model context survived a restart.
         for path in sorted(self.root.glob('*/run.json'), reverse=True):
             if not RUN_ID.fullmatch(path.parent.name) or path.is_symlink() or path.parent.is_symlink():
                 continue
             try:
                 record = self.read_record(path.parent.name)
-                if record.get('mode') not in ['chat', 'tools', 'computer'][:self.config.lesson]:
+                if record.get('mode') not in ['chat', 'tools', 'computer'][:self.config.lesson + 1]:
+                    continue
+                experiment = self.sessions.get(record.get('experiment_id'))
+                if experiment is not None:
+                    experiment.records.append(record)
                     continue
                 settings = {key: record.get(key) for key in ('model', 'perception', 'task_id')}
                 settings['perception'] = settings['perception'] or 'vision'
@@ -93,13 +114,25 @@ class SessionService:
             except (OSError, ValueError, KeyError, TypeError):
                 continue
 
+        for session in self.sessions.values():
+            if not session.records:
+                continue
+            session.records.sort(key=lambda record: record['started_at'])
+            session.messages = [message for record in session.records for message in messages_from(record)]
+            session.trace = replay_trace(session.records[-1])
+            session.settings.update({key: session.records[-1][key] for key in ('model', 'perception')})
+            session.status = session.records[-1]['status']
+            session.readonly = True  # Reset before retrying; model context does not survive a restart.
+
     def publish(self):
         self.revision += 1
         self.changed.set()
 
     def list(self):
         values = {**self.history, **{key: value.metadata() for key, value in self.sessions.items()}}
-        return sorted(values.values(), key=lambda item: item['created_at'], reverse=True)
+        fixed = [item for item in values.values() if item.get('experiment')]
+        history = sorted((item for item in values.values() if not item.get('experiment')), key=lambda item: item['created_at'], reverse=True)
+        return [*fixed, *history]
 
     def create(self, settings):
         session = Session(self, settings)
@@ -118,7 +151,9 @@ class SessionService:
         raise KeyError('会话不存在。')
 
     def snapshot(self, session):
-        return redact({**session.public(), 'active_id': self.active_id, 'revision': self.revision}, self.config.api_key)
+        return redact({**session.public(), 'active_id': self.active_id, 'revision': self.revision,
+                       'learning': self.learning.public() if self.learning else None,
+                       'removed': session.id not in self.sessions and session.id not in self.history}, self.config.api_key)
 
     def read_record(self, run_id):
         if not RUN_ID.fullmatch(run_id):
@@ -139,7 +174,7 @@ class SessionService:
         session.busy = True
         session.status = 'running'
         self.active_id = session.id
-        if not session.messages:
+        if not session.messages and not session.experiment:
             session.title = short(redact(text, self.config.api_key), 46)
         session.messages.append({'role': 'user', 'text': redact(text, self.config.api_key)})
         session.trace.begin(redact(text, self.config.api_key))
@@ -188,6 +223,77 @@ class SessionService:
             session.trace.finish({'status': 'cancelled'})
             self.active_id = None
             self.publish()
+
+    def clear_history(self, keep_id=None):
+        protected = {value for value in (keep_id, self.active_id) if value is not None}
+        protected.update(key for key, session in self.sessions.items() if session.experiment)
+        if keep_id is not None:
+            self.get(keep_id)  # Reject a stale selection before touching history.
+        removed_ids = (set(self.history) | set(self.sessions)) - protected
+        run_ids = {key[4:] for key in self.history if key in removed_ids}
+        protected_runs = set()
+        for key, session in self.sessions.items():
+            ids = {record['id'] for record in session.records}
+            if session.runtime.last_record:
+                ids.add(session.runtime.last_record.id)
+            (protected_runs if key in protected else run_ids).update(ids)
+        run_ids -= protected_runs
+        self.archive_runs(run_ids)
+        for key in removed_ids:
+            self.history.pop(key, None)
+            session = self.sessions.pop(key, None)
+            if session:
+                session.runtime.reset()
+                session.runtime.last_record = None
+                session.messages = []
+                session.records = []
+                session.trace = TraceState()
+        self.publish()
+        return len(removed_ids)
+
+    def reset_experiment(self, session):
+        if not session.experiment:
+            raise ValueError('只有固定实验可以重置。')
+        if session.busy:
+            raise ValueError('请先停止实验，再重置。')
+        ids = {record['id'] for record in session.records}
+        if session.runtime.last_record:
+            ids.add(session.runtime.last_record.id)
+        self.archive_runs(ids)
+        session.runtime.reset()
+        session.runtime.last_record = None
+        session.messages = []
+        session.records = []
+        session.trace = TraceState()
+        session.status = 'ready'
+        session.readonly = False
+        session.task = None
+        self.publish()
+
+    def archive_runs(self, run_ids):
+        # Archive as one batch, so a failed move leaves the entire list intact.
+        moved = []
+        if run_ids:
+            trash = self.root / '.trash'
+            if trash.is_symlink():
+                raise OSError('回收目录不可用。')
+            destination = trash / uuid.uuid4().hex
+            destination.mkdir(parents=True)
+            try:
+                for run_id in sorted(run_ids):
+                    if not RUN_ID.fullmatch(run_id):
+                        raise OSError('运行记录 ID 无效。')
+                    source = self.root / run_id
+                    if source.is_symlink():
+                        raise OSError('运行记录目录不可用。')
+                    if source.exists():
+                        target = destination / run_id
+                        source.rename(target)
+                        moved.append((source, target))
+            except OSError:
+                for source, target in reversed(moved):
+                    target.rename(source)
+                raise
 
     async def close(self):
         tasks = [session.task for session in self.sessions.values() if session.task and not session.task.done()]

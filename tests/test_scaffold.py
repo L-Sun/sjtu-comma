@@ -12,7 +12,7 @@ from common.core.experiments import grade
 
 
 @asynccontextmanager
-async def client_for(tmp_path, backend='demo', lesson=3):
+async def client_for(tmp_path, backend='demo', lesson=2):
     app = create_app(backend, Config(api_key='test-secret', lesson=lesson), root=tmp_path)
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://127.0.0.1:8766') as client:
@@ -34,7 +34,7 @@ async def finish(app, client, sid, text='请展示这个流程', **kwargs):
     return (await client.get(f'/api/sessions/{sid}')).json()
 
 
-@pytest.mark.parametrize('lesson', [1, 2, 3])
+@pytest.mark.parametrize('lesson', [1, 2])
 async def test_demo_full_http_flow(lesson, tmp_path):
     async with client_for(tmp_path, lesson=lesson) as (app, client):
         sid = await create(client)
@@ -43,8 +43,7 @@ async def test_demo_full_http_flow(lesson, tmp_path):
         assert [m['role'] for m in result['messages']] == ['user', 'assistant']
         record = (await client.get(f"/api/runs/{result['run_id']}/export")).json()
         assert record['lesson'] == lesson
-        if lesson > 1:
-            assert result['trace']['calls'] > 0
+        assert result['trace']['calls'] > 0
         for image in result['images']:
             assert (await client.get(image['url'])).status_code == 200
         result = await finish(app, client, sid, '再来一次')
@@ -53,21 +52,23 @@ async def test_demo_full_http_flow(lesson, tmp_path):
         assert not (await client.get(f'/api/sessions/{fresh}')).json()['messages']
 
 
-async def test_lesson_checkpoints_and_llm_probe(tmp_path):
+async def test_lesson_checkpoints_and_llm_probe(tmp_path, monkeypatch):
+    from common.core.types import ModelReply
+    async def complete(messages, tools, config):
+        assert not tools or {t.name for t in tools} == {'list_files', 'read_course_file', 'check_agent'}
+        return ModelReply({'role': 'assistant', 'content': 'LLM ready'})
+    monkeypatch.setattr('common.core.llm.complete', complete)
     async with client_for(tmp_path, 'exercise', lesson=1) as (app, client):
         sid = await create(client)
         result = await finish(app, client, sid, llm_only=True)
-        assert 'TODO 1' in str(result)
+        assert result['status'] == 'completed' and result['messages'][-1]['text'] == 'LLM ready'
         result = await finish(app, client, sid)
-        assert 'TODO 1' in str(result)
+        assert result['status'] == 'completed' and result['runner'] == 'teaching_chat'
+        assert result['learning']['passed'] == 0
         boot = (await client.get('/api/bootstrap')).json()
-        assert boot['lesson_capabilities'] == ['chat'] and boot['lesson'] == 1
-        assert not any(t['id'] == 'code-edit' for t in boot['tasks'])
-        assert (await client.post('/api/sessions', json={'task_id': 'code-edit'})).status_code == 400
-    async with client_for(tmp_path, 'exercise', lesson=2) as (app, client):
-        sid = await create(client)
-        result = await finish(app, client, sid)
-        assert 'TODO 2' in str(result)
+        assert boot['lesson_capabilities'] == ['chat', 'tools'] and boot['lesson'] == 1
+        assert any(t['id'] == 'code-edit' for t in boot['tasks'])
+        assert (await client.post('/api/sessions', json={'task_id': 'code-edit'})).status_code == 201
         assert (await client.post('/api/sessions', json={'task_id': 'calculator'})).status_code == 400
 
 
@@ -100,7 +101,7 @@ async def test_history_reload_is_readonly_and_exports(tmp_path):
         sid = await create(client)
         run = (await finish(app, client, sid))['run_id']
     async with client_for(tmp_path) as (app, client):
-        items = (await client.get('/api/sessions')).json()['sessions']
+        items = [s for s in (await client.get('/api/sessions')).json()['sessions'] if not s.get('experiment')]
         assert items[0]['id'] == 'run-' + run and items[0]['readonly']
         snapshot = (await client.get('/api/sessions/run-' + run)).json()
         assert len(snapshot['messages']) == 2
@@ -177,19 +178,19 @@ async def test_sse_pending_completion_reconnect_over_real_http(tmp_path):
 
 
 async def test_lesson_history_excludes_later_capabilities(tmp_path):
-    async with client_for(tmp_path, lesson=3) as (app, client):
+    async with client_for(tmp_path, lesson=2) as (app, client):
         sid = await create(client)
         await finish(app, client, sid)
     async with client_for(tmp_path, lesson=1) as (app, client):
-        assert (await client.get('/api/sessions')).json()['sessions'] == []
+        assert not [s for s in (await client.get('/api/sessions')).json()['sessions'] if not s.get('experiment')]
 
 
 async def test_task_selection_never_changes_lesson_capabilities(tmp_path):
-    async with client_for(tmp_path, lesson=2) as (app, client):
+    async with client_for(tmp_path, lesson=1) as (app, client):
         for task_id in ['free', 'format', 'code-edit']:
             sid = await create(client, task_id=task_id)
             snapshot = await finish(app, client, sid)
             record = (await client.get(f"/api/runs/{snapshot['run_id']}/export")).json()
-            assert record['lesson'] == 2 and record['mode'] == 'tools'
+            assert record['lesson'] == 1 and record['mode'] == 'tools'
             assert 'mode' not in snapshot['settings']
         assert (await client.post('/api/sessions', json={'mode': 'chat'})).status_code == 400

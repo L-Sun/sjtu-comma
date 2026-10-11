@@ -13,7 +13,7 @@ from common.app.trace import result_summary
 from common.core.config import Config
 from common.core.shell_tools import OUTPUT_LIMIT, Shell, ShellRunner, child_environment, select_shell
 from common.core.types import ModelReply
-from lesson_03_computer_use import agent
+from lesson_02_computer_use import agent
 
 
 def python_command(source):
@@ -116,7 +116,7 @@ async def test_timeout_and_cancel_stop_descendants(tmp_path, cancel):
 
 async def test_real_shell_through_reference_agent_and_runtime(tmp_path, monkeypatch):
     monkeypatch.setattr('common.app.runtime.ROOT', tmp_path)
-    runtime = Runtime('exercise', lesson=2, root=tmp_path / 'runs')
+    runtime = Runtime('exercise', lesson=1, root=tmp_path / 'runs')
     requests = 0
 
     async def complete(messages, tools, config):
@@ -134,19 +134,19 @@ async def test_real_shell_through_reference_agent_and_runtime(tmp_path, monkeypa
 
     runtime.module = lambda name: agent if name == 'agent' else SimpleNamespace(complete=complete)
     events = []
-    await runtime.run('执行命令验证', Config(lesson=2), events.append)
+    await runtime.run('执行命令验证', Config(lesson=1), events.append)
     assert runtime.last_record.data['status'] == 'completed'
     assert runtime.last_record.data['tool_calls'] == 1
     assert [e.kind for e in events if e.kind.startswith('tool_')] == ['tool_start', 'tool_end']
     async with Runtime(lesson=1).registry(Config(lesson=1)) as (tools, _):
-        assert not tools
+        assert 'bash' in {tool.name for tool in tools}
 
 
 async def test_edit_exercise_shell_defaults_to_copy(tmp_path):
     from common.core.edit_tools import EditWorkspace
     editor = EditWorkspace(tmp_path / 'code')
-    runtime = Runtime('exercise', lesson=2)
-    async with runtime.registry(Config(lesson=2), editor) as (tools, execute):
+    runtime = Runtime('exercise', lesson=1)
+    async with runtime.registry(Config(lesson=1), editor) as (tools, execute):
         assert {'bash', 'search_file', 'read_file', 'edit'} <= {t.name for t in tools}
         result = await execute('bash', {'command': python_command('import os; print(os.getcwd())')})
         assert json.loads(result.text)['stdout'].strip() == str(editor.root)
@@ -157,6 +157,6 @@ async def test_shell_result_redacts_api_key_before_model(monkeypatch):
     async def fake_execute(self, arguments):
         return ToolResult('known-private-key')
     monkeypatch.setattr(ShellRunner, 'execute', fake_execute)
-    async with Runtime('exercise', lesson=2).registry(Config(lesson=2, api_key='known-private-key')) as (_, execute):
+    async with Runtime('exercise', lesson=1).registry(Config(lesson=1, api_key='known-private-key')) as (_, execute):
         result = await execute('bash', {'command': 'example'})
         assert result.text == '[REDACTED]'

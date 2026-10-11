@@ -4,7 +4,7 @@ import json
 from types import SimpleNamespace
 import pytest
 
-agent = pytest.importorskip("lesson_03_computer_use.agent")
+agent = pytest.importorskip("lesson_02_computer_use.agent")
 from common.app.runtime import Runtime
 from common.core.config import Config
 from common.core.types import AgentState, Event, Image, ModelReply, RunContext, ToolResult
@@ -53,7 +53,7 @@ async def test_max_rounds():
 async def test_runtime_timeout_no_broken_history(tmp_path):
     async def slow(*args):
         await asyncio.sleep(10)
-    rt = Runtime("exercise", lesson=2, root=tmp_path)
+    rt = Runtime("exercise", lesson=1, root=tmp_path)
     rt.module = lambda name: SimpleNamespace(run_turn=agent.run_turn, complete=slow)
     await rt.run("hello", Config(turn_timeout=.03), lambda e: None)
     assert rt.last_record.data["status"] == "timeout"
@@ -66,9 +66,9 @@ async def test_dispatch_rejects_unknown_and_bad_args(tmp_path):
         seen.append(await ctx.execute("shell", {"command": "ls"}))
         seen.append(await ctx.execute("calculate", {"operation": "divide", "a": 1, "b": 0}))
         seen.append(await ctx.execute("calculate", {"operation": "add", "a": "wrong", "b": 0}))
-    rt = Runtime("exercise", lesson=2, root=tmp_path)
+    rt = Runtime("exercise", lesson=1, root=tmp_path)
     rt.module = lambda name: SimpleNamespace(run_turn=malicious_turn, complete=None)
-    await rt.run("hello", Config(lesson=2), lambda e: None)
+    await rt.run("hello", Config(lesson=1), lambda e: None)
     assert all(r.is_error for r in seen)
 
 
@@ -80,7 +80,7 @@ def test_calculator_verifier_reads_result_not_expression():
 
 
 def test_model_optional_parameters_follow_catalog():
-    from lesson_02_agent.llm import request_parameters
+    from common.core.llm import request_parameters
     config = Config()
     assert request_parameters(config, {'tools', 'max_tokens', 'temperature'}) == {'temperature': 0, 'max_tokens': 2048}
     assert request_parameters(config, {'tools', 'max_tokens'}) == {'max_tokens': 2048}

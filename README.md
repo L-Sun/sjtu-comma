@@ -1,63 +1,68 @@
 # COMMA · Mini Agent Lab
 
-从 LLM API、Agent 工具循环到本机 Computer Use 的三个递进练习。使用**本机 HTTP 服务 + Web 工作台**，不需要 Node.js，也没有教师模式。
+从 Agent 工具循环到本机 Computer Use 的两个递进练习。**LLM 客户端直接提供**，学生专注 Agent 与电脑操作。使用本机 HTTP 服务 + Web 工作台，不需要 Node.js，也没有教师模式。
 
 ## 项目结构
 
 ```text
 common/                       公共 Web、运行时、工具、实验题与记录
-lesson_01_llm/                 作业：LLM API 调用
-lesson_02_agent/               LLM 标准答案 + Agent 循环作业
-lesson_03_computer_use/        LLM/Agent 标准答案 + Cua 接入作业
-docs/student/                 作业说明与接口契约
-scripts/                      检查器、练习页、验收与打包
-tests/                        框架与标准实现回归测试
+  core/llm.py                 已完成的 LLM 客户端，两节课共用
+lesson_01_agent/              6 个辅助函数 + 学生实现 Agent loop + 离线检查
+lesson_02_computer_use/       Agent 标准实现 + Cua 接入作业
+docs/student/                作业说明与接口契约
+scripts/                     检查器、练习页、验收与打包
+tests/                       框架与标准实现回归测试
 ```
 
-每个 lesson 都包含 README。前置标准答案是实际代码副本，可以在当前目录阅读和修改；不会暗中引用上一课时的未完成作业。
+每个 lesson 都包含 README。第二课的 Agent 标准实现是独立代码副本，不依赖第一课是否完成。LLM 客户端由公共框架提供，不作为作业。
 
-| 阶段 | 当前作业 | 已提供的标准实现 | 开放能力 |
+| 课时 | 当前作业 | 已提供 | 开放能力 |
 | --- | --- | --- | --- |
-| [01 · LLM](lesson_01_llm/README.md) | `llm.py` | 公共 Web 和消息契约 | 对话、A1—A3 |
-| [02 · Agent](lesson_02_agent/README.md) | `agent.py` | 同目录 `llm.py` | 对话、工具、A4/A5、bash |
-| [03 · Computer Use](lesson_03_computer_use/README.md) | `cua.py` | 同目录 `llm.py`、`agent.py` | 前两阶段 + 本机电脑操作 |
+| [01 · Agent](lesson_01_agent/README.md) | `agent.py` 的 6 个辅助函数与 `run_turn()` | 函数接口、LLM 客户端、Web、基础工具 | 对话、A1—A5、bash |
+| [02 · Computer Use](lesson_02_computer_use/README.md) | `cua.py` | 以上内容、同目录 `agent.py` 标准实现 | 第一课能力 + 本机电脑操作 |
+
+只需要 Python 基础即可开始第一课：[和 Chat 一起实现函数与 Agent loop](lesson_01_agent/README.md)。教学 Chat 会先帮你列文件、读代码、返回可粘贴的函数；每个函数有单独的离线检查，全部通过后同一对话交给你自己的 Agent。函数接口和流程图已提供；学生与 Chat 直接实现 `run_turn()` 的“模型 → 工具 → 模型”循环，普通聊天是其中的退出分支。
 
 ## 启动
 
-安装 [uv](https://docs.astral.sh/uv/getting-started/installation/)，复制 `.env.example` 为 `.env` 并填写 OpenRouter Key。
+安装 [uv](https://docs.astral.sh/uv/getting-started/installation/)，启动后点击左下角齿轮，在设置面板填写 API Key 和 Base URL（默认 OpenRouter，也可使用 OpenAI 兼容接口）。也可以复制 `.env.example` 为 `.env` 手动配置。
 
 ```bash
 uv sync --python 3.12
 uv run mini-agent --lesson 1 --open
 ```
 
-浏览器地址 **http://127.0.0.1:8766**。`--lesson 2`、`--lesson 3` 切换课时，`--port` 更换端口，`--open` 自动打开浏览器。停止旧服务后再启动另一课时，或使用不同端口。默认第一课；未补完时显示对应 TODO 提示。
+浏览器地址 **http://127.0.0.1:8766**。`--lesson 1`、`--lesson 2` 切换课时，`--port` 更换端口，`--open` 自动打开浏览器。停止旧服务后再启动另一课时，或使用不同端口。默认第一课；作业尚未完成时使用教学 Chat，可列目录、读文件、讨论实现并检查代码。学生粘贴保存后自动检查，全部通过后下一轮切换到自己的 Agent，无需重启。「测试 LLM」直接使用已提供的客户端。
 
-想先体验已完成的聊天、工具与代码编辑，可以直接启动第三课；该课只把 Cua 接入留空。仅预览界面用 `uv run mini-agent --lesson 3 --demo --open`，模拟模式不调用模型或操作电脑。终端按 Ctrl+C 停止服务。
+想先体验已完成的聊天、工具与代码编辑，可以直接启动第二课；该课只把 Cua 接入留空。仅预览界面用 `uv run mini-agent --lesson 2 --demo --open`，模拟模式不调用模型或操作电脑。终端按 Ctrl+C 停止服务。
 
 ```bash
 uv run python scripts/check_student.py llm --lesson 1    # 真实 API，会产生费用
-uv run python scripts/check_student.py agent --lesson 2  # 假模型，无费用
-uv run python scripts/check_student.py cua --lesson 3    # 本机 Cua，只读检查
+uv run python scripts/check_student.py agent --lesson 1  # 假模型，无费用
+uv run python scripts/check_student.py cua --lesson 2    # 本机 Cua，只读检查
 ```
 
 阅读 [接口契约](docs/student/CONTRACT.md)、[作业说明](docs/student/ASSIGNMENT.md) 和 [公共框架说明](common/README.md)。
 
 ## Web 工作台
 
-能力由启动的 lesson 自动累加，页面没有阶段或能力切换器。题目只选择实验内容，A5 额外挂载本轮练习文件副本。
+能力由启动的 lesson 自动累加，页面没有阶段、能力或题目切换器。左侧「固定实验」列出当前课时的实验：第一课 A1—A5，第二课另有 B1—B3。点击实验会打开专属会话，并在输入框预填可编辑的提示词；A5 额外挂载本轮练习文件副本。
 
-左侧是可搜索的会话，中间是对话与模型/实验设置，右侧「执行过程」实时展示工具动作、结果、错误和重复调用。只显示已发生的操作，不生成额外的模型思考摘要；完整参数与代码 diff 可导出。
+左侧是可搜索的固定实验和普通会话，中间是对话与模型设置，右侧「执行过程」实时展示工具动作、结果、错误和重复调用。只显示已发生的操作，不生成额外的模型思考摘要；完整参数与代码 diff 可导出。
 
 Enter 发送，Shift+Enter 换行，点击方形按钮停止，⌘/Ctrl+K 新对话。顶部下载按钮导出运行记录；面板按钮展开/收起执行过程。支持深浅主题与窄屏抽屉。视觉参考 [still.fail](https://github.com/AFK-surf/still.fail)，图标 MIT 授权见 [第三方声明](THIRD_PARTY_NOTICES.md)。
 
-刷新页面会重新连接当前会话，不重复执行。服务重启后，磁盘记录显示为只读历史；可用相同设置新建。切换模型或观察方式会新建会话并保留旧会话。同一服务一次执行一个任务；切换会话不会自动停止正在运行的任务。
+点击左侧「会话记录」旁的「清空历史」，清理普通历史对话，保留全部固定实验、当前打开的对话及正在执行的任务。清理后的记录移入本机 `runs/.trash/`，重启后不会重新出现在列表；保留对话的消息、模型上下文和设置保持不变。
 
-浏览器不接收 API Key，服务端从 `.env` 读取。服务只监听 `127.0.0.1`，接口限制本机 Host、拒绝跨站访问并校验写操作 token。它是本机课堂工具，不提供公网账户服务。
+固定实验不会被清理。点击顶部「重置实验」会清空该实验的消息、模型上下文和执行过程，将运行记录移入 `runs/.trash/`，恢复原始提示词并保留当前模型与观察方式；重做前请先导出需要提交的记录。实验开始后如需换模型或观察方式，先重置再选择。重置不会撤销模型对本机文件或应用的操作；电脑实验仍需手动恢复应用初始状态。
+
+刷新页面会重新连接当前会话，不重复执行。服务重启后，磁盘记录显示为只读历史：普通会话可用相同设置新建，固定实验可重置后再做。普通会话切换模型或观察方式会新建会话并保留旧会话。同一服务一次执行一个任务；切换会话不会自动停止正在运行的任务。
+
+设置面板支持配置 Base URL 和 API Key：先保存接口配置，再点「拉取模型」，按名称或 ID 搜索、勾选后点「添加选中」，模型会立即加入对话顶部的菜单。配置保存到本机 `.env`（`OPENROUTER_BASE_URL`、`OPENROUTER_API_KEY`、`OPENROUTER_MODELS`），后续运行生效，重启保留。Base URL 需包含接口前缀（例如 `https://openrouter.ai/api/v1` 或本机服务的 `http://localhost:1234/v1`），列表和对话分别请求其 `/models` 与 `/chat/completions`。已有 Key 只显示“已配置”，不会回传浏览器，也不会写进 localStorage；留空保持原值。正在执行的任务继续使用启动时的配置。深浅主题和跟随系统也在设置面板中。服务只监听 `127.0.0.1`，接口限制本机 Host、拒绝跨站访问并校验写操作 token。它是本机课堂工具，不提供公网账户服务。
 
 ## 两组实验
 
-**模型指令遵循与代码修改**：固定框架与题目，比较较早和较新的模型。默认提供 Gemini 2.5 Flash 与 Gemini 3.8 Flash，可通过 `.env` 的 `OPENROUTER_MODELS` 修改，例如 GPT‑3.5 Turbo 与 GPT‑5.6 Sol。名称可用性和费用以 OpenRouter 为准；两次实验不足以代表整体能力排序。
+**模型指令遵循与代码修改**：固定框架与题目，比较较早和较新的模型。默认提供 Gemini 2.5 Flash 与 Gemini 3.8 Flash，可在设置中搜索并添加其他模型，也可通过 `.env` 的 `OPENROUTER_MODELS` 修改，例如 GPT‑3.5 Turbo 与 GPT‑5.6 Sol。名称可用性和费用以 OpenRouter 为准；两次实验不足以代表整体能力排序。
 
 **Computer Use**：固定模型和任务，比较纯视觉、Accessibility Tree、混合模式。公共层强制限制输入信息和可用定位参数；每次比较前需手动恢复电脑应用状态。当前比较同时涉及观察信息与定位方式，不是严格的纯输入消融。
 
@@ -67,11 +72,11 @@ A5 的 [course_page.py](common/core/fixtures/course_page.py) 有5,000行。A/B/C
 
 ## 本机命令工具
 
-Lesson 02 起自动提供 `bash(command, cwd?, timeout_seconds=30)`：macOS 使用 zsh，Linux 使用 Bash，Windows 使用 PowerShell 7（没有则使用 Windows PowerShell）。实际 shell 会写入工具说明，无需在 Windows 安装 Bash 或 WSL。
+Lesson 01 起自动提供 `bash(command, cwd?, timeout_seconds=30)`：macOS 使用 zsh，Linux 使用 Bash，Windows 使用 PowerShell 7（没有则使用 Windows PowerShell）。实际 shell 会写入工具说明，无需在 Windows 安装 Bash 或 WSL。
 
 每次调用启动新的非交互进程；`cd` 和变量不延续到下次。默认目录是项目根目录，A5 默认本轮代码副本目录。返回退出码、stdout/stderr、耗时、超时与截断标记；每个输出流最多16KiB，超时最多120秒。
 
-这是真实本机命令，按当前用户权限访问文件，不是沙箱。子进程不直接继承模型 API Key，但仍可访问文件。停止或超时清理 POSIX 进程组，Windows 用 `taskkill /T /F` 尝试清理进程树；脱离进程组的常驻服务不保证回收。Lesson 03 在保留这些工具的基础上加入 Cua。电脑观察实验要求模型仅用 Cua 操作目标窗口；验收需核对实际工具调用，不能把提示约束视为沙箱隔离。
+这是真实本机命令，按当前用户权限访问文件，不是沙箱。子进程不直接继承模型 API Key，但仍可访问文件。停止或超时清理 POSIX 进程组，Windows 用 `taskkill /T /F` 尝试清理进程树；脱离进程组的常驻服务不保证回收。Lesson 02 在保留这些工具的基础上加入 Cua。电脑观察实验要求模型仅用 Cua 操作目标窗口；验收需核对实际工具调用，不能把提示约束视为沙箱隔离。
 
 ## 本机 Cua
 
@@ -107,4 +112,4 @@ uv run pytest -q
 uv run python scripts/export_student.py
 ```
 
-发布包包含 `common/`、三个 lesson 及前置标准答案，不包含 `.env`、运行记录或当前 Cua 作业的测试辅助答案。开发工作区的验收说明见 [VALIDATION.md](docs/VALIDATION.md)（不放入学生包）。
+发布包包含 `common/`、两个 lesson 及前置标准答案，不包含 `.env`、运行记录或当前 Cua 作业的测试辅助答案。开发工作区的验收说明见 [VALIDATION.md](docs/VALIDATION.md)（不放入学生包）。

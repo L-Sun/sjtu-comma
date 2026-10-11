@@ -38,6 +38,7 @@ def test_invalid_key_never_changes_file(tmp_path, key):
 
 async def test_settings_save_is_private_persistent_and_applies_without_restart(tmp_path, monkeypatch):
     monkeypatch.setenv('OPENROUTER_API_KEY', 'initial-env-key')
+    monkeypatch.setenv('OPENROUTER_BASE_URL', Config().base_url)
     config = Config(api_key='previous-key', lesson=1)
     app = create_app('exercise', config, root=tmp_path/'runs', env_path=tmp_path/'.env')
     seen = []
@@ -51,18 +52,18 @@ async def test_settings_save_is_private_persistent_and_applies_without_restart(t
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app),base_url='http://127.0.0.1') as client:
             boot = (await client.get('/api/bootstrap')).json()
             initial = await client.get('/api/settings')
-            assert initial.json() == {'api_configured': True} and 'previous-key' not in initial.text
+            assert initial.json()['api_configured'] is True and 'previous-key' not in initial.text
             assert (await client.post('/api/settings',json={'api_key':'unauthorized-key'})).status_code == 403
             assert not (tmp_path/'.env').exists()
             client.headers['X-Comma-Token'] = boot['csrf_token']
             response = await client.post('/api/settings',json={'api_key':'test-openrouter-new-key'})
             assert response.status_code == 200
-            assert response.json() == {'api_configured': True}
+            assert response.json()['api_configured'] is True
             assert 'test-openrouter-new-key' not in response.text
             assert dotenv_values(tmp_path/'.env')['OPENROUTER_API_KEY'] == 'test-openrouter-new-key'
             assert os.environ['OPENROUTER_API_KEY'] == 'test-openrouter-new-key'
             sid = (await client.post('/api/sessions',json={})).json()['id']
-            await client.post(f'/api/sessions/{sid}/messages',json={'text':'hello'})
+            await client.post(f'/api/sessions/{sid}/messages',json={'text':'hello', 'llm_only':True})
             await app.state.service.get(sid).task
             assert seen == ['test-openrouter-new-key']
             snapshot = (await client.get(f'/api/sessions/{sid}')).json()

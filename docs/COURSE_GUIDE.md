@@ -2,7 +2,7 @@
 
 ```bash
 uv sync --python 3.12
-uv run mini-agent --lesson 3 --open
+uv run mini-agent --lesson 2 --open
 uv run pytest -q
 uv run python scripts/live_verify.py --desktop
 uv run python scripts/live_verify.py --task code-edit
@@ -11,9 +11,9 @@ uv run python scripts/live_practice.py
 uv run python scripts/export_student.py
 ```
 
-没有独立教师模式。三个 lesson 按阶段提供前置标准答案，当前阶段保留 TODO。第三课已提供完整 LLM/Agent，可直接验收工具链；Cua 仍需完成。发布使用 `dist/comma-mini-agent-student.zip`。
+没有独立教师模式。LLM 客户端在公共框架直接提供；两个 lesson 分别保留 Agent 和 Cua 作业。第二课已提供 Agent 标准实现，可直接验收工具链；Cua 仍需完成。发布使用 `dist/comma-mini-agent-student.zip`。
 
-学生包采用显式白名单：包含 common、三个 lesson、各课前置标准答案、文档、练习页、检查器和依赖锁。排除 `.env`、当前 Cua 练习的测试辅助实现、真实运行记录与缓存。
+学生包采用显式白名单：包含 common、两个 lesson、各课前置标准答案、文档、练习页、检查器和依赖锁。排除 `.env`、当前 Cua 练习的测试辅助实现、真实运行记录与缓存。
 
 当前默认模型来自 2026-10-11 查询的 OpenRouter 模型目录。两个模型均支持 tools 与图片输入；真实 API 可用性仍需每次开课前预跑。它们是代际样本，不是对所有老/新模型的代表。
 
@@ -38,8 +38,12 @@ GPT‑5.6 在此次 OpenRouter 目录中带有 Sol/Terra/Luna 后缀；本次验
 
 ## 跨平台命令工具
 
-`common/core/shell_tools.py` 提供统一 `bash` function tool：macOS 用 zsh、Linux 用 Bash、Windows 用 PowerShell 7 或 Windows PowerShell。从 Lesson 02 起自动注册，Lesson 03 继续保留，包括 A5（默认进入本轮副本目录）。不依赖用户默认登录 shell 或 Windows 上的 WSL；模型从工具 description 获取实际环境。
+`common/core/shell_tools.py` 提供统一 `bash` function tool：macOS 用 zsh、Linux 用 Bash、Windows 用 PowerShell 7 或 Windows PowerShell。从 Lesson 01 起自动注册，Lesson 02 继续保留，包括 A5（默认进入本轮副本目录）。不依赖用户默认登录 shell 或 Windows 上的 WSL；模型从工具 description 获取实际环境。
 
 命令在本机当前用户权限下执行，允许 cwd 指向其他目录，不是安全沙箱。环境变量只传基础运行所需项目，避免直接继承 API Key；文件系统仍然可访问。超时/取消时清理 POSIX 进程组，Windows 用 taskkill 清理进程树；脱离进程组的服务不保证回收。任务若需常驻服务应由教师另外启动。原始 stdout/stderr 保存在 run.json，默认 trace 只显示摘要、退出码和错误。
 
-验收脚本经 Web 使用的 HTTP API 发送任务与导出结果，不声称这些脚本完成了浏览器点击验收。`--desktop` 需要先完成第三课 cua.py；测试辅助的独立状态读取不提供给模型。
+验收脚本经 Web 使用的 HTTP API 发送任务与导出结果，不声称这些脚本完成了浏览器点击验收。`--desktop` 需要先完成第二课 cua.py；测试辅助的独立状态读取不提供给模型。
+
+## 第一课授课节奏
+
+面向有 Python 基础、没有工程经验的学生。先打开教学 Chat，指挥它列目录、读文件、解释函数并返回代码，由学生亲自粘贴保存。结合“6×7”的消息历史，按第一课 README 填写六个函数；框架、工具、Web、函数接口和流程图直接提供。完成1—6后，与 Chat 围绕“模型 → 工具 → 模型”直接实现第7步 Agent loop，包括无工具退出、异常与停止条件；运行 `uv run python -m lesson_01_agent.check loop` 检查循环，再用 `check chat` 检查无工具回复和多轮历史。普通聊天不作为独立实现阶段。教学 Chat 从一开始即可使用真实模型和三个课程工具。全部检查通过后下一轮自动运行学生自己的 Agent，保留对话并可调用 check_agent 自检，再进入模型比较实验；不把 HTTP、事件系统、并发或截图编码作为本课前置知识。第二课标准实现与第一课函数布局一致。
