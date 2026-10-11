@@ -43,6 +43,14 @@ def test_failed_edit_never_claims_write_and_finish_is_not_success():
     assert '验收未通过' in state.steps[-1].title
 
 
+def test_course_edit_displays_automatic_checks_without_claiming_success():
+    result = ToolResult(json.dumps({'saved': True, 'edit_count': 4,
+        'checks': {'ready': False, 'passed': 4, 'total': 5, 'detail': '核心 Loop 待完成'}}))
+    status, summary = result_summary('edit_course_file', result)
+    assert status == 'done' and '自动检查 4/5' in summary and '核心 Loop 待完成' in summary
+    assert '全部通过' not in summary
+
+
 def test_out_of_order_results_and_cancel_pending_action():
     state = TraceState()
     start(state, 'a')

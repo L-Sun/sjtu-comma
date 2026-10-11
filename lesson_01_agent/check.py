@@ -14,7 +14,7 @@ from pathlib import Path
 import sys
 
 from common.core.student_loader import load_student_agent
-from common.core.event_contract import validate_event
+from common.core.event_contract import EventContractError, validate_event
 
 
 def context_for(complete=None, execute=None, events=None):
@@ -177,10 +177,17 @@ async def check_loop_stop(module):
 
 async def check_loop(module):
     """Step 5 is the student's control flow, including its stopping conditions."""
-    await check_tool_roundtrip(module)
-    await check_tool_batch_and_errors(module)
-    await check_loop_limit(module)
-    await check_loop_stop(module)
+    failures = []
+    for title, check in [('工具往返', check_tool_roundtrip), ('批量工具', check_tool_batch_and_errors),
+                         ('轮数上限', check_loop_limit), ('停止', check_loop_stop)]:
+        try:
+            await check(module)
+        except ExercisePending:
+            raise
+        except Exception as exc:
+            failures.append(f'{title}：{type(exc).__name__}: {exc}')
+    if failures:
+        raise AssertionError('\n'.join(failures))
 
 
 CHECKS = {
@@ -189,7 +196,7 @@ CHECKS = {
     "3": ("执行工具", check_execution),
     "4": ("包装工具结果", check_tool_message),
     "chat": ("无工具退出与多轮历史（run_turn 分支检查）", check_chat),
-    "loop": ("第 5 步 · run_turn（循环、批量工具、错误、上限、停止）", check_loop),
+    "loop": ("核心 Loop（工具往返、批量、上限、停止）", check_loop),
 }
 
 
@@ -202,6 +209,24 @@ async def run_checks(module, step="all"):
         print("  通过")
 
 
+def failure_detail(exc):
+    detail = f'{type(exc).__name__}: {exc}'[:900]
+    tb = exc.__traceback__
+    location = None
+    while tb:
+        path = Path(tb.tb_frame.f_code.co_filename)
+        if path.name == 'agent.py':
+            location = f'{path.parent.name}/agent.py:{tb.tb_lineno}'
+        tb = tb.tb_next
+    if location:
+        detail += f'\n出错位置：{location}'
+    if isinstance(exc, EventContractError) or (isinstance(exc, TypeError) and 'Event.__init__' in str(exc)):
+        detail += ('\n网页事件已由 lesson_io 提供，不需要在循环中编写 Event 或 emit。'
+                   '\n保留 agent.py 已提供的 with lesson_io(...) as context，'
+                   '用 context.complete 请求模型、context.run_tool(call) 执行工具。')
+    return detail[:1200]
+
+
 async def inspect_checks(module):
     """Structured results for the teaching Chat; every check uses fake dependencies."""
     results = []
@@ -212,7 +237,7 @@ async def inspect_checks(module):
         except ExercisePending as exc:
             status, detail = 'pending', str(exc)
         except Exception as exc:
-            status, detail = 'failed', f'{type(exc).__name__}: {exc}'
+            status, detail = 'failed', failure_detail(exc)
         results.append({'id': number, 'title': title, 'status': status, 'detail': detail[:1200]})
     failed = next((row for row in results if row['status'] != 'passed'), None)
     loop_ready = all(row['status'] == 'passed' for row in results if row['id'] in {'chat', 'loop'})
@@ -247,7 +272,7 @@ def main():
                 result = asyncio.run(inspect_checks(module))
         except Exception as exc:
             result = {'ready': False, 'passed': 0, 'total': 5, 'checks': [],
-                      'detail': f'{type(exc).__name__}: {exc}'[:1200]}
+                      'detail': failure_detail(exc)}
         print(json.dumps(result, ensure_ascii=False))
         raise SystemExit(0 if result['ready'] else 1)
     try:
@@ -257,7 +282,7 @@ def main():
         print(f"待完成：{exc}\n请填写对应函数，保存文件后重新运行同一命令。")
         raise SystemExit(1)
     except Exception as exc:
-        print(f"检查未通过 · {type(exc).__name__}: {exc}\n请对照 README 的对应步骤检查 agent.py。")
+        print(f"检查未通过 · {failure_detail(exc)}\n请对照 README 的对应步骤检查 agent.py。")
         raise SystemExit(1)
     print("所选检查全部通过。下一步见 README。")
 

@@ -21,7 +21,7 @@ tests/                       框架与标准实现回归测试
 | [01 · Agent](lesson_01_agent/README.md) | `tools.py` 接入 Edit；`agent.py` 实现辅助函数与 Loop | 函数接口、LLM 客户端、Web、基础工具 | 对话、A1—A5、bash |
 | [02 · Computer Use](lesson_02_computer_use/README.md) | `cua.py` | 以上内容、同目录 `agent.py` 标准实现 | 第一课能力 + 本机电脑操作 |
 
-只需要 Python 基础即可开始第一课：[和 Chat 一起实现函数与 Agent loop](lesson_01_agent/README.md)。先与教学 Chat 完成 `tools.py` 的工具声明与执行分发；Edit 接通后，用它协助编辑后续作业。每个函数有单独的离线检查，全部通过后同一对话交给你自己的 Agent。函数接口和流程图已提供；学生与 Chat 直接实现 `run_turn()` 的“模型 → 工具 → 模型”循环，普通聊天是其中的退出分支。
+只需要 Python 基础即可开始第一课：[和 Chat 一起实现函数与 Agent loop](lesson_01_agent/README.md)。先与教学 Chat 完成 `tools.py` 的工具声明与执行分发；Edit 接通后，用它协助编辑后续作业。课程分三阶段：接入 Edit、一起完成四个辅助函数、实现核心 Loop。Edit 写入后直接附带离线检查结果，全部通过后同一对话交给你自己的 Agent。消息准备、网页事件、错误和图片处理已提供；学生与 Chat 直接实现 `run_turn()` 的“模型 → 工具 → 模型”循环，普通聊天是其中的退出分支。
 
 ## 启动
 

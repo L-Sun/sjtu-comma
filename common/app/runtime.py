@@ -188,7 +188,7 @@ class Runtime:
                                                   'text': redact(result.text, config.api_key)[:2000]})
                             return ToolResult(redact(result.text, config.api_key), result.images, result.is_error)
 
-                        prompt = learning_chat.SYSTEM if teaching else SYSTEM + f"\n本次观察模式：{config.perception}。"
+                        prompt = learning_chat.system_prompt(progress) if teaching else SYSTEM + f"\n本次观察模式：{config.perception}。"
                         if self.learning and not teaching:
                             prompt += "\n" + learning_chat.STUDENT_SYSTEM
                         if self.state.messages and self.state.messages[0].get('role') == 'system':

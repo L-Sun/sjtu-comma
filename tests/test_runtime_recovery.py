@@ -19,20 +19,40 @@ from tests.test_learning_chat import course, tool_reply
 from tests.test_scaffold import client_for, create, finish
 
 
-@pytest.mark.parametrize('old,new,missing', [
-    ('"id": call["id"], "name": name,\n                                               "arguments":',
-     '"call_id": call["id"], "tool_name": name,\n                                               "tool_args":', 'id, name, arguments'),
-    ('"name": name, "result": result', '"name": name', 'result'),
-])
-async def test_lesson_checker_rejects_events_that_used_to_crash_ui(old, new, missing):
+def with_extra_event(event):
     path = Path(reference.__file__)
-    source = path.read_text()
-    assert old in source
-    module = load_student_agent(source.replace(old, new), path)
-    result = await check.inspect_checks(module)
+    source = path.read_text().replace('    messages = state.messages',
+        '    reply = ModelReply({"role": "assistant", "content": "hello"})\n'
+        f'    context.emit({event})\n    messages = state.messages')
+    return load_student_agent(source, path)
+
+
+@pytest.mark.parametrize('event,missing', [
+    ('Event("tool_start", {"call_id": "a", "tool_name": "test", "tool_args": "{}"})', 'id, name, arguments'),
+    ('Event("tool_end", {"id": "a", "name": "test"})', 'result'),
+])
+async def test_lesson_checker_rejects_events_that_used_to_crash_ui(event, missing):
+    result = await check.inspect_checks(with_extra_event(event))
     loop = next(row for row in result['checks'] if row['id'] == 'loop')
     assert not result['ready'] and result['passed'] == 4
     assert loop['status'] == 'failed' and 'EventContractError' in loop['detail'] and missing in loop['detail']
+
+
+@pytest.mark.parametrize('event', [
+    'Event("assistant", text=reply.text)',
+    'Event("assistant", content=reply.text)',
+    'Event("assistant", usage=reply.usage)',
+    'Event("assistant", tool_code_and_output=[])',
+    'Event("assistant")',
+    'Event("tool_code_and_output", {})',
+])
+async def test_event_failures_point_back_to_provided_io(event):
+    result = await check.inspect_checks(with_extra_event(event))
+    failed = next(row for row in result['checks'] if row['id'] == 'chat')
+    assert failed['status'] == 'failed'
+    detail = failed['detail']
+    assert 'agent.py:' in detail and '网页事件已由 lesson_io 提供' in detail
+    assert 'context.run_tool(call)' in detail and len(detail) <= 1200
 
 
 @pytest.mark.parametrize('after_execution', [False, True])

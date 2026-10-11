@@ -127,10 +127,11 @@ function renderLearning(){
   const active=running||progress.runner;
   $('learning-title').textContent=active==='student'?'我的 Agent':'教学 Chat';
   $('learning-mode').textContent=active==='student'?'自动循环':'单步模式';
-  $('learning-count').textContent=`Edit ${progress.edit?.ready?'已接入':`${progress.edit?.passed||0}/2`} · Loop ${progress.passed}/${progress.total}`;
+  const helpers=progress.checks.filter(row=>['1','2','3','4'].includes(row.id)&&row.status==='passed').length;
+  $('learning-count').textContent=!progress.edit?.ready?`阶段 1/3 · Edit ${progress.edit?.passed||0}/2`:helpers<4?`阶段 2/3 · 辅助函数 ${helpers}/4`:`阶段 3/3 · Loop ${progress.ready?'已完成':'待完成'}`;
   $('learning').classList.toggle('ready',active==='student');
   const transition=running&&running!==progress.runner;
-  $('learning-detail').textContent=transition?'本轮继续使用当前实现；下一轮根据最新检查结果切换。':progress.ready?'全部检查通过。下一条消息运行你保存的 agent.py，也可以让它调用工具检查自己。':progress.edit?.ready?'Edit 已接通。每次只请求一次模型，工具返回后点击“继续下一步”。完成 Loop 后自动推进。':'先与 Chat 完成 tools.py 的工具声明和执行分发；工具返回后点击“继续下一步”，接通 Edit 后再一起写 Loop。';
+  $('learning-detail').textContent=transition?'本轮继续使用当前实现；下一轮根据最新检查结果切换。':progress.ready?'全部检查通过。下一条消息运行你保存的 agent.py，也可以让它调用工具检查自己。':progress.edit?.ready?'一起完成四个辅助函数，再写核心 Loop。编辑后自动检查，点击继续解释结果或推进下一阶段。':'先与 Chat 接入 Edit，再一起完成辅助函数和核心 Loop。每次工具返回后点击继续。';
   const allChecks=[...(progress.edit?.checks||[]),...progress.checks];
   $('learning-checks').replaceChildren(...(allChecks.length?allChecks.map(row=>el('li',row.status,`${row.status==='passed'?'✓':'○'} ${row.title}：${row.detail}`)):[el('li','',progress.detail)]));
   $('check-agent').disabled=checkingAgent;
@@ -158,8 +159,8 @@ $('continue-step').onclick=async()=>{
 function learningWelcome(){
   if(!ui.boot.learning)return;
   document.querySelector('#welcome h1').textContent='和 Chat 一起，写出你的 Agent。';
-  document.querySelector('#welcome > p').textContent='先接入 Edit，手动推进读写步骤；再完成 Agent loop，让你的 Agent 自动推进。';
-  const prompts=[['search','列出课程文件','从目录开始认识项目','请先列出课程根目录和 lesson_01_agent 中的文件，告诉我第一课要改哪个文件。'],['edit','先接入 Edit 工具','声明工具，连接执行','请先读取 lesson_01_agent/tools.py 和 README，和我一起完成 Edit 的工具声明与执行分发。先讲解，再给我这次需要手动粘贴的接入代码，保存后帮我检查。'],['check','检查我的 Agent','看看下一步该做什么','请调用 check_agent 检查 Edit 接入与 Agent loop 的进度，解释下一步；如果 Edit 已接通，我们一起用它编辑当前的待完成函数。']];
+  document.querySelector('#welcome > p').textContent='三个阶段：接入 Edit、完成辅助函数、写出核心 Loop。编辑后自动检查。';
+  const prompts=[['edit','1 · 接入 Edit','声明工具，连接执行','请直接读取 lesson_01_agent/tools.py 和 README，和我一起接入 Edit。简短解释两个函数，给出这次需要手动保存的代码。'],['edit','2 · 完成辅助函数','四个函数，一起完成','Edit 已接通。请读取 agent.py，简短解释数据如何经过四个辅助函数，然后用一个编辑批次完成它们，保留核心 Loop 的 TODO。根据编辑返回的检查结果说明进度。'],['check','3 · 写出核心 Loop','请求、执行、回传、继续','请读取 agent.py，和我一起实现核心 Loop：请求模型、遍历工具、回传结果、继续循环。保留已提供的 lesson_io，网页事件和图片不需要我们编写。用 Edit 写入并依据自动检查结果解释。']];
   document.querySelector('.suggestions').replaceChildren(...prompts.map(([symbol,title,detail,prompt])=>{const button=el('button');button.type='button';button.append(icon(symbol),el('strong','',title),el('span','',detail));button.onclick=()=>{if(ui.current)newChat(true);$('prompt').value=prompt;updateHint();controls();$('prompt').focus();};return button;}));
   renderLearning();
 }

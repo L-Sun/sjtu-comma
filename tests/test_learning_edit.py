@@ -124,13 +124,12 @@ async def test_incorrect_registration_or_dispatch_cannot_enable_edit(course, old
     assert 'edit_course_file' not in {tool.name for tool in workspace.tools()}
 
 
-async def test_chat_uses_connected_edit_to_complete_loop_then_student_takes_over(course, monkeypatch):
+async def test_chat_uses_edit_checks_without_an_extra_model_or_check_turn(course, monkeypatch):
     original = (course / TARGET).read_text()
     solution = (ROOT / 'lesson_02_computer_use/agent.py').read_text()
-    solution += '\n_original = run_turn\nasync def run_turn(text, state, context):\n    context.emit(Event("status", {"text": "EDIT_BUILT_THIS_LOOP"}))\n    await _original(text, state, context)\n'
-    helper = next(node for node in ast.parse(solution).body if isinstance(node, ast.FunctionDef) and node.name == 'remember_assistant_message')
-    first_helper = ast.get_source_segment(solution, helper)
-    partial = original + '\n' + first_helper + '\n'
+    helpers = [ast.get_source_segment(solution, node) for node in ast.parse(solution).body
+               if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name != 'run_turn']
+    partial = original + '\n' + '\n\n'.join(helpers) + '\n'
     requests = []
     step = 0
     async def complete(messages, tools, config):
@@ -139,18 +138,18 @@ async def test_chat_uses_connected_edit_to_complete_loop_then_student_takes_over
         requests.append({t.name for t in tools})
         if step == 1:
             return ModelReply({'role': 'assistant', 'content': '先一起接入 tools.py。'})
-        if step in (2, 6):
+        if step in (2, 5):
             return tool_reply('read_course_file', {'path': TARGET}, f'read-{step}')
-        if step in (3, 7):
+        if step in (3, 6):
             data = json.loads(json.loads(messages[-1]['content'])['text'])
             before, after = (original, partial) if step == 3 else (partial, solution)
             args = edit_args(before, before, after)
             args['base_version'] = data['version']
             return tool_reply('edit_course_file', args, f'edit-{step}')
-        if step in (4, 8, 10):
-            return tool_reply('check_agent', {}, f'check-{step}')
-        assert step in (5, 9, 11)
-        return ModelReply({'role': 'assistant', 'content': '已按实际检查结果完成本步。'})
+        assert step in (4, 7)
+        saved = json.loads(json.loads(messages[-1]['content'])['text'])
+        assert saved['saved'] and saved['checks']['passed'] == (4 if step == 4 else 5)
+        return ModelReply({'role': 'assistant', 'content': '编辑和自动检查已完成。'})
     monkeypatch.setattr('common.core.llm.complete', complete)
     app = create_app(Config(lesson=1, api_key='fake'), root=course / 'runs', lesson_root=course)
     async with app.router.lifespan_context(app):
@@ -161,42 +160,41 @@ async def test_chat_uses_connected_edit_to_complete_loop_then_student_takes_over
             async def turn(text):
                 assert (await client.post(f'/api/sessions/{sid}/messages', json={'text': text})).status_code == 202
                 await asyncio.wait_for(app.state.service.get(sid).task, 15)
-                session = (await client.get(f'/api/sessions/{sid}')).json()
-                assert session['status'] in {'completed', 'waiting'}
-                record = (await client.get(f"/api/runs/{session['run_id']}/export")).json()
-                return session, record
-            initial, _ = await turn('先一起接入 Edit')
+                return (await client.get(f'/api/sessions/{sid}')).json()
+            initial = await turn('先一起接入 Edit')
             assert initial['runner'] == 'teaching_chat' and 'edit_course_file' not in requests[0]
-            # The student's sole manual bootstrap step happens in this temporary course.
             (course / 'lesson_01_agent/tools.py').write_text(CONNECTED)
-            first, _ = await turn('使用我们接好的 Edit，完成第一个辅助函数')
-            assert first['runner'] == 'teaching_chat' and 'edit_course_file' in requests[1]
+            first = await turn('一起完成四个辅助函数')
             assert step == 2 and first['awaiting_continue']
-            assert (course / TARGET).read_text() == original  # only read on this click
             edited = await continue_step(app, client, first)
             assert step == 3 and edited['awaiting_continue']
             assert (course / TARGET).read_text() == partial
             record = (await client.get(f"/api/runs/{edited['run_id']}/export")).json()
+            calls = [e['data']['name'] for e in record['events'] if e['kind'] == 'tool_start']
+            assert calls == ['edit_course_file']  # checks need no extra tool call or model request
             result = next(json.loads(e['data']['result']['text']) for e in record['events'] if e['kind'] == 'tool_end')
-            assert result['saved'] and result['diff']
-            checked = await continue_step(app, client, edited)
-            assert step == 4 and checked['awaiting_continue']
-            record = (await client.get(f"/api/runs/{checked['run_id']}/export")).json()
-            result = next(json.loads(e['data']['result']['text']) for e in record['events'] if e['kind'] == 'tool_end')
-            assert result['passed'] == 1 and result['edit']['ready']
-            answered = await continue_step(app, client, checked)
-            assert step == 5 and answered['status'] == 'completed'
-            last, _ = await turn('按讨论结果完成其余函数与 Loop')
-            assert step == 6 and (course / TARGET).read_text() == partial
+            assert result['saved'] and result['checks']['passed'] == 4 and not result['checks']['ready']
+            assert result['version'] == result['checks']['version']
+            answered = await continue_step(app, client, edited)
+            assert step == 4 and answered['status'] == 'completed'
+            last = await turn('一起实现核心 Loop')
+            assert step == 5
             last = await continue_step(app, client, last)
-            assert step == 7 and last['runner'] == 'teaching_chat'  # no switch halfway through a step
+            assert step == 6 and last['runner'] == 'teaching_chat'
             assert (course / TARGET).read_text() == solution
-            ready = (await client.post('/api/learning/check', json={})).json()
-            assert ready['ready'] and ready['passed'] == 5 and ready['edit']['ready']
+            assert last['learning']['ready']
             resumed = await continue_step(app, client, last)
-            assert step == 9 and resumed['runner'] == 'student' and not resumed['awaiting_continue']
-            student, record = await turn('由刚写好的 Loop 检查自己')
-            assert step == 11 and student['runner'] == 'student' and student['source_version'] == ready['version']
-            assert 'edit_course_file' in requests[9]
-            assert any(e['data'].get('text') == 'EDIT_BUILT_THIS_LOOP' for e in record['events'])
+            assert step == 7 and resumed['runner'] == 'student' and not resumed['awaiting_continue']
             assert len(list((course / '.course-edits').glob('*.py'))) == 2
+
+
+async def test_failed_or_unsuccessful_edit_does_not_claim_checks_passed(course):
+    (course / 'lesson_01_agent/tools.py').write_text(CONNECTED)
+    workspace = LearningWorkspace(course)
+    await workspace.refresh()
+    before = (course / TARGET).read_text()
+    saved = await workspace.execute('edit_course_file', edit_args(before, 'import json', 'import json  # valid edit'))
+    data = json.loads(saved.text)
+    assert data['saved'] and not data['checks']['ready'] and data['checks']['passed'] == 0
+    stale = await workspace.execute('edit_course_file', edit_args(before, 'import json', 'import json  # stale'))
+    assert stale.is_error and '版本冲突' in stale.text

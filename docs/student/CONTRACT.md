@@ -1,6 +1,6 @@
 # 学生模块接口契约
 
-Web 工作台由教师完成。第一课先阅读 `lesson_01_agent/README.md`，先与教学 Chat 完成 `tools.py` 的 Edit 接入，再用接通的 Edit 完成 `agent.py` 中四个辅助函数与 `run_turn()` 循环；接口和事件格式已提供。未完成时由预置单步教学 Chat 提供 list_files、read_course_file、check_agent；它不依赖 Agent 作业函数；tools.py 的声明与分发检查通过后，下一轮才开放 edit_course_file。保存 tools.py 或 agent.py 后自动检查，通过后下一轮加载同一已检查版本的学生实现，保留对话。修改出错后返回教学 Chat。运行记录中的 runner 和 source_version 标明本轮实际实现及代码 SHA-256。教学 Chat 每次只请求一次模型，工具结果保存后等待用户继续。继续请求不追加 user 消息；普通会话等待状态可在重启后恢复。本文供查阅接口细节。第二课填写 `cua.py`。不要通过修改 `common/core/policy.py` 绕过实验条件。
+Web 工作台由教师完成。第一课先阅读 `lesson_01_agent/README.md`，先与教学 Chat 完成 `tools.py` 的 Edit 接入，再用接通的 Edit 完成 `agent.py` 中四个辅助函数与 `run_turn()` 核心循环；网页事件、错误和图片处理由 `lesson_io` 提供。未完成时由预置单步教学 Chat 提供 list_files、read_course_file、check_agent；它不依赖 Agent 作业函数；tools.py 的声明与分发检查通过后，下一轮才开放 edit_course_file。Edit 保存成功的同一次工具结果会附带 `checks`，无需额外模型请求或单独调用 check_agent；通过后下一轮加载同一已检查版本的学生实现，保留对话。修改出错后返回教学 Chat。运行记录中的 runner 和 source_version 标明本轮实际实现及代码 SHA-256。教学 Chat 每次只请求一次模型，工具结果保存后等待用户继续。继续请求不追加 user 消息；普通会话等待状态可在重启后恢复。本文供查阅接口细节。第二课填写 `cua.py`。不要通过修改 `common/core/policy.py` 绕过实验条件。
 
 ## LLM（已提供，无需实现）
 
@@ -20,40 +20,34 @@ Web 工作台由教师完成。第一课先阅读 `lesson_01_agent/README.md`，
 
 ## Agent
 
-`run_turn(user_text, state, context)` 处理一个用户回合，可以包含多次模型调用。此函数也是学生作业（第 5 步）。点击继续时 `user_text` 为 `None`，使用已有工具结果而不追加用户消息。消息初始化与新输入追加已提供在函数开头；保留它们，与 Chat 一起实现后面的循环，按 README 流程图调用四个辅助函数，并实现多工具、异常与停止条件。
+`run_turn(user_text, state, context)` 处理一个用户回合，可以包含多次模型调用。消息准备和 `with lesson_io(...) as context` 已提供；学生实现 `with` 块内的核心循环。点击继续时 `user_text` 为 `None`，不追加新的 user 消息。
 
-学生函数按约定追加 `state.messages`，无需自己设计状态管理。新对话和取消时框架清空它。`context` 提供：
+原始 `RunContext` 提供 `system_prompt`、`config`、`tools`、`complete`、`execute` 和 `emit`。进入 `lesson_io` 后，循环使用以下接口：
 
-| 属性 | 用途 |
+| 接口 | 用途 |
 | --- | --- |
-| `system_prompt` | 首条 system 消息内容 |
-| `config` | 当前模型、模式、轮数上限 |
-| `tools` | 此次允许的工具定义 |
-| `complete(messages, tools, config)` | 教师已提供的模型调用函数 |
-| `execute(name, arguments)` | 已检查工具白名单/参数的执行入口 |
-| `emit(Event(...))` | 通知界面，不用接触 HTTP 或浏览器 DOM |
+| `config.max_rounds` | 学生循环的次数上限 |
+| `tools` | 当前可用工具定义 |
+| `complete(messages, tools, config)` | 请求一次模型；自动显示文字和用量 |
+| `run_tool(call)` | 调用学生的参数解析与工具执行函数，返回 ToolResult；自动记录事件与收集图片 |
 
-事件：
+四个辅助函数是同一教学阶段：保存完整回复、解析参数、等待执行、创建工具结果消息。`execute_tool` 收到原始 context，使用 `await context.execute(name, arguments)`；循环中的 `context.run_tool(call)` 会连接这两个工具相关辅助函数。
 
-```python
-Event("assistant", {"text": "回复"})
-Event("status", {"text": "第 2 次请求"})
-Event("tool_start", {"id": call_id, "name": tool_name, "arguments": arguments})
-Event("tool_end", {"id": call_id, "name": tool_name, "result": tool_result})
-Event("usage", reply.usage)
-Event("status", {"text": "达到上限", "limit": True})
-```
+学生负责的规则：
 
-重要约束：
+1. 每次模型返回后，将完整 `reply.message` 保存到历史。
+2. 根据 `reply.tool_calls` 是否为空决定结束，不能只看是否有文字。
+3. 遍历全部工具调用，将每个 ID 对应的结果放回历史，再次请求模型。
+4. 最多请求 `config.max_rounds` 次，不清空历史、不重复追加用户输入。
 
-1. 保存含 `tool_calls` 的 assistant 消息，再写回对应 ID 的 tool 结果。
-2. 一个模型回复包含多个调用时，每个调用都需要结果。电脑动作顺序执行。
-3. 所有 tool 结果写回后，再追加图片 user 消息，避免打断工具结果批次。
-4. `ToolResult.text`、`is_error` 和 `images` 都有意义；不能把图片对象简单 `str()`。
-5. 图片用 `{"type":"image_url","image_url":{"url":"data:image/png;base64,..."}}` 作为 user 内容块。注明来源工具调用 ID。
-6. 达到 `max_rounds` 必须停止；不要捕获/吞掉 `asyncio.CancelledError`。
+框架提供的规则：
 
-不要求 streaming；先完成整段回复即可。
+- `lesson_io` 发送 assistant、usage、tool_start、tool_end 和上限事件，学生无需手写 Event。
+- 参数解析或工具执行的普通错误转为错误 ToolResult；ExercisePending 与取消信号继续向外传播。
+- 同批工具的全部结果写回后，才在下一次模型请求前追加图片消息，保留来源 ID 与图片内容。
+- `lesson_io` 本身不会请求模型、执行工具、回传工具结果或自动循环；这些动作只发生在学生调用相应接口时。
+
+第二课使用同一组接口与标准循环。不要求 streaming。
 
 ## 教师提供的 Edit 工具
 

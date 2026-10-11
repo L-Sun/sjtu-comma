@@ -44,6 +44,26 @@ async def test_list_read_and_boundaries(course):
     assert more['entries'] and not set(x['path'] for x in page['entries']) & set(x['path'] for x in more['entries'])
 
 
+async def test_read_continuation_reaches_contract_beyond_first_page(course):
+    path = course / 'common/long-guide.md'
+    path.write_text('\n'.join([f'line {i}' for i in range(1, 325)] + ['Event(kind, data)']))
+    workspace = LearningWorkspace(course)
+    arguments = {'path': 'common/long-guide.md'}
+    pages = []
+    while True:
+        result = await workspace.execute('read_course_file', arguments)
+        assert not result.is_error
+        page = json.loads(result.text)
+        pages.append(page)
+        if page['next_start_line'] is None:
+            break
+        arguments['start_line'] = page['next_start_line']
+    assert [p['start_line'] for p in pages] == [1, 161, 321]
+    assert [p['end_line'] for p in pages] == [160, 320, 325]
+    assert len({p['version'] for p in pages}) == 1
+    assert '325: Event(kind, data)' in pages[-1]['content']
+
+
 async def test_checks_cache_errors_and_timeout(course, monkeypatch):
     workspace = LearningWorkspace(course)
     first = await workspace.refresh()

@@ -112,6 +112,10 @@ def result_summary(name, result):
     if name == 'read_file' and 'content' in data:
         return 'done', f"已读取 {len(data['content'].splitlines())} 行 · 全文 {data.get('total_lines', '?')} 行"
     if name in {'edit', 'edit_course_file'} and data.get('saved'):
+        if name == 'edit_course_file' and isinstance(data.get('checks'), dict):
+            checks = data['checks']
+            outcome = '全部通过' if checks.get('ready') else short(checks.get('detail', '请继续完成作业'), 95)
+            return 'done', f"已写入 {data.get('edit_count', '?')} 处 · 自动检查 {checks.get('passed', 0)}/{checks.get('total', 5)} · {outcome}"
         return 'done', f"已写入 {data.get('edit_count', '?')} 处修改"
     if name == 'calculate' and 'result' in data:
         return 'done', '结果：' + short(data['result'])

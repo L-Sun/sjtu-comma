@@ -69,7 +69,7 @@ class LearningWorkspace:
                     'offset': {'type': 'integer', 'minimum': 0},
                 }, 'additionalProperties': False,
             }),
-            ToolSpec('read_course_file', '读取最新保存的课程源文件或讲义，返回带行号文本。返回文件版本和带行号的文本，每次最多160行，可分段读取。编辑时使用 version 作为 base_version，old_text 不包含行号。', {
+            ToolSpec('read_course_file', '读取最新保存的课程源文件或讲义，返回带行号文本。每次最多160行；next_start_line 非空表示尚未读完，用它作为 start_line 继续读取所需章节。编辑时使用 version 作为 base_version，old_text 不包含行号。', {
                 'type': 'object', 'properties': {
                     'path': {'type': 'string', 'description': '例如 lesson_01_agent/agent.py 或 lesson_01_agent/README.md'},
                     'start_line': {'type': 'integer', 'minimum': 1},
@@ -85,7 +85,14 @@ class LearningWorkspace:
     async def execute(self, name, arguments):
         try:
             if name == 'edit_course_file':
-                return await self.edit.execute(name, arguments)
+                edited = await self.edit.execute(name, arguments)
+                if edited.is_error:
+                    return edited
+                result = json.loads(edited.text)
+                if result.get('saved'):
+                    # Offline validation belongs to the same tool call; no model retry.
+                    result['checks'] = await self.refresh(force=True)
+                return ToolResult(json.dumps(result, ensure_ascii=False), edited.images)
             if name == 'check_agent':
                 result = await self.refresh(force=True)
             elif name == 'list_files':
@@ -118,6 +125,7 @@ class LearningWorkspace:
                 result = {'path': path.relative_to(self.root).as_posix(), 'version': hashlib.sha256(source.encode('utf-8')).hexdigest(),
                           'total_lines': len(lines),
                           'start_line': start, 'end_line': min(end, len(lines)),
+                          'next_start_line': end + 1 if end < len(lines) else None,
                           'content': '\n'.join(f'{i}: {line}' for i, line in enumerate(selected, start))}
             else:
                 return ToolResult('课程工具不存在。', is_error=True)
