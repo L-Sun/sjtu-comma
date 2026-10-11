@@ -24,9 +24,7 @@ def add_user_message(messages: list[dict], user_text: str, system_prompt: str) -
     [{"role": "system", "content": "你是助手"},
      {"role": "user", "content": "你好"}]
     """
-    if not messages:
-        messages.append({"role": "system", "content": system_prompt})
-    messages.append({"role": "user", "content": user_text})
+    raise ExercisePending("TODO 1.1 · 完成 add_user_message：准备历史消息。")
 
 
 def remember_assistant_message(messages: list[dict], reply: ModelReply) -> None:

@@ -18,13 +18,7 @@ def get_tools() -> list[ToolSpec]:
     - 参数定义：EDIT_PARAMETERS（已提供，描述 path、base_version、edits）。
     这个函数只声明工具，不读写文件。
     """
-    return [
-        ToolSpec(
-            name="edit_course_file",
-            description="编辑第一课作业；先读文件，再按当前版本精确替换。",
-            parameters=EDIT_PARAMETERS,
-        )
-    ]
+    raise ExercisePending("TODO Edit.1 · 在 get_tools 中声明 edit_course_file。")
 
 
 async def call_tool(name: str, arguments: dict, editor) -> ToolResult:
@@ -37,7 +31,4 @@ async def call_tool(name: str, arguments: dict, editor) -> ToolResult:
     editor 的版本检查、精确替换、备份与写入均已提供，不需要自己操作磁盘。
     你要理解：上一个函数只给模型看说明，这个函数才连接真正的执行。
     """
-    if name == "edit_course_file":
-        return await editor.execute(arguments)
-    else:
-        return ToolResult(f"未知工具: {name}", is_error=True)
+    raise ExercisePending("TODO Edit.2 · 在 call_tool 中连接编辑工具的执行入口。")
