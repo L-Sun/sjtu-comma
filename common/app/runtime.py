@@ -31,8 +31,7 @@ capture_id 只能用于一次像素点击，下一次点击前必须重新观察
 
 
 class Runtime:
-    def __init__(self, backend="exercise", *, root=None, lesson=2, learning=None):
-        self.backend = backend
+    def __init__(self, *, root=None, lesson=2, learning=None):
         self.lesson = lesson
         self.state = AgentState()
         self.last_record = None
@@ -103,7 +102,7 @@ class Runtime:
 
     async def run(self, text, config, emit, task_id="free", *, llm_only=False):
         config = config.copy(lesson=self.lesson)
-        record = Record(config, self.backend, task_id, **({"root": self.root} if self.root else {}))
+        record = Record(config, task_id, **({"root": self.root} if self.root else {}))
         record.data["lesson"] = self.lesson
         if self.experiment_id:
             record.data["experiment_id"] = self.experiment_id
@@ -138,16 +137,14 @@ class Runtime:
                     record.data['source_version'] = progress['version']
                     label = '教学 Chat' if teaching else '我的 Agent · 已加载保存的 agent.py'
                     report(Event('status', {'text': label, 'runner': progress['runner']}))
-                if task_id == "code-edit" and not teaching and not llm_only and self.backend != "demo":
+                if task_id == "code-edit" and not teaching and not llm_only:
                     self.reset()
                     editor = EditWorkspace(record.path / "code")
                     (record.path / "baseline.py").write_bytes(BASELINE.encode("utf-8"))
                     record.data["code_file"] = "code/" + FILENAME
                     record.data["code_exercise"] = "course-rename-5000-v1"
                     report(Event("status", {"text": "已创建 5,000 行课程代码副本；只修改课程 B，模型历史已清空。"}))
-                if self.backend == "demo":
-                    await self.demo(text, config, report)
-                elif llm_only:
+                if llm_only:
                     reply = await self.module("llm").complete([{"role": "user", "content": text}], [], config)
                     report(Event("assistant", {"text": reply.text}))
                     report(Event("usage", reply.usage))
@@ -202,7 +199,7 @@ class Runtime:
             limited = any(e["data"].get("limit") for e in events if e["kind"] == "status")
             if limited:
                 record.data["status"] = "limit"
-            record.data["grade"] = grade(task_id, answers[-1] if answers else "", calls) if record.data["status"] == "completed" and self.backend != "demo" else {"status": "not_scored"}
+            record.data["grade"] = grade(task_id, answers[-1] if answers else "", calls) if record.data["status"] == "completed" else {"status": "not_scored"}
             if editor is not None and record.data["status"] == "completed":
                 record.data["grade"] = record.data.pop("code_grade")
                 g = record.data["grade"]
@@ -210,14 +207,3 @@ class Runtime:
             if self.conversation and not self.experiment_id:
                 record.data['model_messages'] = saved_messages(self.state.messages, config.api_key)
             record.save()
-
-    async def demo(self, text, config, report):
-        report(Event("status", {"text": "演示模式 · 模拟数据，不调用 API 或操作电脑"}))
-        await asyncio.sleep(.25)
-        if config.mode != "chat":
-            name = "get_window_state" if config.mode == "computer" else "calculate"
-            report(Event("tool_start", {"id": "demo", "name": name, "arguments": "{}"}))
-            await asyncio.sleep(.35)
-            report(Event("tool_end", {"id": "demo", "name": name,
-                                       "result": ToolResult("模拟工具结果；仅用于检查 Web 界面。" )}))
-        report(Event("assistant", {"text": "这是演示回复。\n请在 lesson_*/ 中补全 Agent 与 Cua 两个模块，使用学生版运行自己的 Agent。"}))

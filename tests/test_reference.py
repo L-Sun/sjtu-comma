@@ -53,7 +53,7 @@ async def test_max_rounds():
 async def test_runtime_timeout_no_broken_history(tmp_path):
     async def slow(*args):
         await asyncio.sleep(10)
-    rt = Runtime("exercise", lesson=1, root=tmp_path)
+    rt = Runtime(lesson=1, root=tmp_path)
     rt.module = lambda name: SimpleNamespace(run_turn=agent.run_turn, complete=slow)
     await rt.run("hello", Config(turn_timeout=.03), lambda e: None)
     assert rt.last_record.data["status"] == "timeout"
@@ -66,7 +66,7 @@ async def test_dispatch_rejects_unknown_and_bad_args(tmp_path):
         seen.append(await ctx.execute("shell", {"command": "ls"}))
         seen.append(await ctx.execute("calculate", {"operation": "divide", "a": 1, "b": 0}))
         seen.append(await ctx.execute("calculate", {"operation": "add", "a": "wrong", "b": 0}))
-    rt = Runtime("exercise", lesson=1, root=tmp_path)
+    rt = Runtime(lesson=1, root=tmp_path)
     rt.module = lambda name: SimpleNamespace(run_turn=malicious_turn, complete=None)
     await rt.run("hello", Config(lesson=1), lambda e: None)
     assert all(r.is_error for r in seen)

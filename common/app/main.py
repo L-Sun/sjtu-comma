@@ -11,7 +11,6 @@ def main(lesson=None):
     parser = argparse.ArgumentParser(description="COMMA Mini Agent Lab · 本机 Web 界面")
     parser.add_argument('--lesson', type=int, choices=[1, 2], default=lesson or 1,
                         help='课时：1 Agent 循环；2 Computer Use')
-    parser.add_argument('--demo', action='store_true', help='模拟界面，不调用模型或电脑')
     parser.add_argument('--port', type=int, default=8766, help='本机端口（默认 8766）')
     parser.add_argument('--open', action='store_true', help='自动打开浏览器')
     args = parser.parse_args()
@@ -24,7 +23,7 @@ def main(lesson=None):
         timer.daemon = True
         timer.start()
     config = load_config().copy(lesson=args.lesson)
-    uvicorn.run(create_app('demo' if args.demo else 'exercise', config),
+    uvicorn.run(create_app(config),
                 host='127.0.0.1', port=args.port, log_level='warning', timeout_graceful_shutdown=3)
 
 

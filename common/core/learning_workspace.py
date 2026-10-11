@@ -28,7 +28,7 @@ class LearningWorkspace:
         self.status = self._not_ready('正在检查已保存的 agent.py。')
 
     def _not_ready(self, detail):
-        return {'ready': False, 'passed': 0, 'total': 6, 'checks': [], 'detail': detail}
+        return {'ready': False, 'passed': 0, 'total': 5, 'checks': [], 'detail': detail}
 
     def public(self):
         return {**self.status, 'version': self.version,
@@ -76,7 +76,7 @@ class LearningWorkspace:
                     'end_line': {'type': 'integer', 'minimum': 1},
                 }, 'required': ['path'], 'additionalProperties': False,
             }),
-            ToolSpec('check_agent', '检查第一课 tools.py 的 Edit 接入，以及 agent.py：五个辅助函数、学生自己实现的 run_turn、两轮聊天、批量工具调用、错误处理与轮数上限。用假模型和假工具，不消耗模型额度。返回逐项结果和代码版本；依据实际结果解释待修复问题。通过后下一个回合使用学生自己的 Agent。', {
+            ToolSpec('check_agent', '检查第一课 tools.py 的 Edit 接入，以及 agent.py：四个辅助函数、学生自己实现的 run_turn、两轮聊天、批量工具调用、错误处理与轮数上限。用假模型和假工具，不消耗模型额度。返回逐项结果和代码版本；依据实际结果解释待修复问题。通过后下一个回合使用学生自己的 Agent。', {
                 'type': 'object', 'properties': {}, 'additionalProperties': False,
             }),
             *self.edit.tools(),

@@ -10,7 +10,7 @@ async def test_clear_history_keeps_current_context_and_survives_restart(tmp_path
         requests.append([dict(message) for message in messages])
         return ModelReply({'role': 'assistant', 'content': '收到'})
     monkeypatch.setattr('common.core.llm.complete', complete)
-    async with client_for(tmp_path, 'exercise', lesson=1) as (app, client):
+    async with client_for(tmp_path, fake_io=False, lesson=1) as (app, client):
         old = await create(client)
         first = await finish(app, client, old, '旧对话第一轮')
         second = await finish(app, client, old, '旧对话第二轮')
@@ -29,7 +29,7 @@ async def test_clear_history_keeps_current_context_and_survives_restart(tmp_path
         assert (await client.get(f"/api/runs/{kept['run_id']}/export")).status_code == 200
         await finish(app, client, current, '继续当前话题')
         assert 'KEEP_CONTEXT' in str(requests[-1])
-    async with client_for(tmp_path, 'exercise', lesson=1) as (_, client):
+    async with client_for(tmp_path, fake_io=False, lesson=1) as (_, client):
         rows = (await client.get('/api/sessions')).json()['sessions']
         assert all(row['id'] not in {'run-'+first['run_id'], 'run-'+second['run_id']} for row in rows)
         assert any(row['id'] == current for row in rows)

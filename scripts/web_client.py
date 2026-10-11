@@ -33,7 +33,7 @@ class WebRunner:
 
 @asynccontextmanager
 async def web_runner(config):
-    app = create_app('exercise', config)
+    app = create_app(config)
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://127.0.0.1') as client:
             client.headers['X-Comma-Token'] = (await client.get('/api/bootstrap')).json()['csrf_token']

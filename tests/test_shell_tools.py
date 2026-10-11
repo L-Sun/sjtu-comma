@@ -116,7 +116,7 @@ async def test_timeout_and_cancel_stop_descendants(tmp_path, cancel):
 
 async def test_real_shell_through_reference_agent_and_runtime(tmp_path, monkeypatch):
     monkeypatch.setattr('common.app.runtime.ROOT', tmp_path)
-    runtime = Runtime('exercise', lesson=1, root=tmp_path / 'runs')
+    runtime = Runtime(lesson=1, root=tmp_path / 'runs')
     requests = 0
 
     async def complete(messages, tools, config):
@@ -145,7 +145,7 @@ async def test_real_shell_through_reference_agent_and_runtime(tmp_path, monkeypa
 async def test_edit_exercise_shell_defaults_to_copy(tmp_path):
     from common.core.edit_tools import EditWorkspace
     editor = EditWorkspace(tmp_path / 'code')
-    runtime = Runtime('exercise', lesson=1)
+    runtime = Runtime(lesson=1)
     async with runtime.registry(Config(lesson=1), editor) as (tools, execute):
         assert {'bash', 'search_file', 'read_file', 'edit'} <= {t.name for t in tools}
         result = await execute('bash', {'command': python_command('import os; print(os.getcwd())')})
@@ -157,6 +157,6 @@ async def test_shell_result_redacts_api_key_before_model(monkeypatch):
     async def fake_execute(self, arguments):
         return ToolResult('known-private-key')
     monkeypatch.setattr(ShellRunner, 'execute', fake_execute)
-    async with Runtime('exercise', lesson=1).registry(Config(lesson=1, api_key='known-private-key')) as (_, execute):
+    async with Runtime(lesson=1).registry(Config(lesson=1, api_key='known-private-key')) as (_, execute):
         result = await execute('bash', {'command': 'example'})
         assert result.text == '[REDACTED]'

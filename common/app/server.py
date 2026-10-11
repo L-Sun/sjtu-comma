@@ -87,7 +87,7 @@ def lesson_capabilities(service):
 
 async def bootstrap(request):
     service = request.app.state.service
-    return JSONResponse({'csrf_token': request.app.state.csrf_token, 'demo': service.backend == 'demo', 'lesson': service.config.lesson,
+    return JSONResponse({'csrf_token': request.app.state.csrf_token, 'lesson': service.config.lesson,
                          'learning': redact(await service.learning.refresh(), service.config.api_key) if service.learning else None,
                          'lesson_capabilities': lesson_capabilities(service),
                          'models': list(service.config.models), 'default_model': service.config.model,
@@ -320,8 +320,8 @@ async def http_error(request, exc):
     return JSONResponse({'error': str(exc.detail)}, status_code=exc.status_code)
 
 
-def create_app(backend='exercise', config=None, *, root=None, env_path=None, lesson_root=None):
-    service = SessionService(backend, config or load_config(), Path(root) if root else ROOT / 'runs', lesson_root=lesson_root)
+def create_app(config=None, *, root=None, env_path=None, lesson_root=None):
+    service = SessionService(config or load_config(), Path(root) if root else ROOT / 'runs', lesson_root=lesson_root)
 
     @asynccontextmanager
     async def lifespan(app):

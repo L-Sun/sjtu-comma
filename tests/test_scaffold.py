@@ -1,6 +1,6 @@
 import asyncio
 import json
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 
 import httpx
 import pytest
@@ -10,17 +10,19 @@ from common.core.config import Config
 from common.core.records import redact
 from common.core.experiments import grade
 from tests.test_learning_chat import course
+from tests.support.model_io import fake_runtime_io
 
 
 @asynccontextmanager
-async def client_for(tmp_path, backend='demo', lesson=2, lesson_root=None):
+async def client_for(tmp_path, *, lesson=2, lesson_root=None, fake_io=True):
     options = {'lesson_root': lesson_root} if lesson_root is not None else {}
-    app = create_app(backend, Config(api_key='test-secret', lesson=lesson), root=tmp_path, **options)
-    async with app.router.lifespan_context(app):
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://127.0.0.1:8766') as client:
-            bootstrap = (await client.get('/api/bootstrap')).json()
-            client.headers['X-Comma-Token'] = bootstrap['csrf_token']
-            yield app, client
+    app = create_app(Config(api_key='test-secret', lesson=lesson), root=tmp_path, **options)
+    with fake_runtime_io() if fake_io else nullcontext():
+        async with app.router.lifespan_context(app):
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://127.0.0.1:8766') as client:
+                bootstrap = (await client.get('/api/bootstrap')).json()
+                client.headers['X-Comma-Token'] = bootstrap['csrf_token']
+                yield app, client
 
 
 async def create(client, **settings):
@@ -37,11 +39,11 @@ async def finish(app, client, sid, text='请展示这个流程', **kwargs):
 
 
 @pytest.mark.parametrize('lesson', [1, 2])
-async def test_demo_full_http_flow(lesson, tmp_path):
+async def test_agent_full_http_flow(lesson, tmp_path):
     async with client_for(tmp_path, lesson=lesson) as (app, client):
         sid = await create(client)
         result = await finish(app, client, sid)
-        assert result['status'] == 'completed' and result['grade']['status'] == 'not_scored'
+        assert result['status'] == 'completed' and result['grade']['status'] == 'manual'
         assert [m['role'] for m in result['messages']] == ['user', 'assistant']
         record = (await client.get(f"/api/runs/{result['run_id']}/export")).json()
         assert record['lesson'] == lesson
@@ -60,7 +62,7 @@ async def test_lesson_checkpoints_and_llm_probe(tmp_path, monkeypatch, course):
         assert not tools or {t.name for t in tools} == {'list_files', 'read_course_file', 'check_agent'}
         return ModelReply({'role': 'assistant', 'content': 'LLM ready'})
     monkeypatch.setattr('common.core.llm.complete', complete)
-    async with client_for(tmp_path / 'runs', 'exercise', lesson=1, lesson_root=course) as (app, client):
+    async with client_for(tmp_path / 'runs', fake_io=False, lesson=1, lesson_root=course) as (app, client):
         sid = await create(client)
         result = await finish(app, client, sid, llm_only=True)
         assert result['status'] == 'completed' and result['messages'][-1]['text'] == 'LLM ready'
@@ -143,40 +145,41 @@ def test_grading_and_redaction():
 async def test_sse_pending_completion_reconnect_over_real_http(tmp_path):
     import socket
     import uvicorn
-    app = create_app('demo', Config(), root=tmp_path)
-    sock = socket.socket()
-    sock.bind(('127.0.0.1', 0))
-    server = uvicorn.Server(uvicorn.Config(app, log_level='error', lifespan='on', timeout_graceful_shutdown=1))
-    task = asyncio.create_task(server.serve(sockets=[sock]))
-    try:
-        async with asyncio.timeout(5):
-            while not server.started:
-                await asyncio.sleep(.01)
-        async with httpx.AsyncClient(base_url=f'http://127.0.0.1:{sock.getsockname()[1]}') as client:
-            client.headers['X-Comma-Token'] = (await client.get('/api/bootstrap')).json()['csrf_token']
-            sid = await create(client)
-            await client.post(f'/api/sessions/{sid}/messages', json={'text': 'SSE test'})
-            snapshots = []
+    with fake_runtime_io():
+        app = create_app(Config(), root=tmp_path)
+        sock = socket.socket()
+        sock.bind(('127.0.0.1', 0))
+        server = uvicorn.Server(uvicorn.Config(app, log_level='error', lifespan='on', timeout_graceful_shutdown=1))
+        task = asyncio.create_task(server.serve(sockets=[sock]))
+        try:
             async with asyncio.timeout(5):
+                while not server.started:
+                    await asyncio.sleep(.01)
+            async with httpx.AsyncClient(base_url=f'http://127.0.0.1:{sock.getsockname()[1]}') as client:
+                client.headers['X-Comma-Token'] = (await client.get('/api/bootstrap')).json()['csrf_token']
+                sid = await create(client)
+                await client.post(f'/api/sessions/{sid}/messages', json={'text': 'SSE test'})
+                snapshots = []
+                async with asyncio.timeout(5):
+                    async with client.stream('GET', f'/api/sessions/{sid}/events') as response:
+                        assert response.headers['content-type'].startswith('text/event-stream')
+                        async for line in response.aiter_lines():
+                            if line.startswith('data: '):
+                                snapshots.append(json.loads(line[6:]))
+                                if not snapshots[-1]['busy']:
+                                    break
+                assert any(s['busy'] for s in snapshots)
+                assert any(step['status'] == 'running' for s in snapshots for step in s['trace']['steps'])
+                assert snapshots[-1]['status'] == 'completed'
                 async with client.stream('GET', f'/api/sessions/{sid}/events') as response:
-                    assert response.headers['content-type'].startswith('text/event-stream')
                     async for line in response.aiter_lines():
                         if line.startswith('data: '):
-                            snapshots.append(json.loads(line[6:]))
-                            if not snapshots[-1]['busy']:
-                                break
-            assert any(s['busy'] for s in snapshots)
-            assert any(step['status'] == 'running' for s in snapshots for step in s['trace']['steps'])
-            assert snapshots[-1]['status'] == 'completed'
-            async with client.stream('GET', f'/api/sessions/{sid}/events') as response:
-                async for line in response.aiter_lines():
-                    if line.startswith('data: '):
-                        assert json.loads(line[6:])['run_id'] == snapshots[-1]['run_id']
-                        break
-    finally:
-        server.should_exit = True
-        await asyncio.wait_for(task, 5)
-        sock.close()
+                            assert json.loads(line[6:])['run_id'] == snapshots[-1]['run_id']
+                            break
+        finally:
+            server.should_exit = True
+            await asyncio.wait_for(task, 5)
+            sock.close()
 
 
 async def test_lesson_history_excludes_later_capabilities(tmp_path):

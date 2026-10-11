@@ -7,7 +7,7 @@
 ```text
 common/                       公共 Web、运行时、工具、实验题与记录
   core/llm.py                 已完成的 LLM 客户端，两节课共用
-lesson_01_agent/              先接入 Edit + 5 个辅助函数 + 学生实现 Agent loop
+lesson_01_agent/              先接入 Edit + 4 个辅助函数 + 学生实现 Agent loop
 lesson_02_computer_use/       Agent 标准实现 + Cua 接入作业
 docs/student/                作业说明与接口契约
 scripts/                     检查器、练习页、验收与打包
@@ -56,7 +56,7 @@ uv run mini-agent --lesson 1 --open
 
 浏览器地址 **http://127.0.0.1:8766**。`--lesson 1`、`--lesson 2` 切换课时，`--port` 更换端口，`--open` 自动打开浏览器。停止旧服务后再启动另一课时，或使用不同端口。默认第一课；作业尚未完成时使用教学 Chat，可列目录、读文件、讨论实现并检查代码。先手动保存 Edit 的接入代码；接通后 Chat 可以实际修改作业并检查。Loop 全部通过后下一轮切换到自己的 Agent，无需重启。「测试 LLM」直接使用已提供的客户端。
 
-想先体验已完成的聊天、工具与代码编辑，可以直接启动第二课；该课只把 Cua 接入留空。仅预览界面用 `uv run mini-agent --lesson 2 --demo --open`，模拟模式不调用模型或操作电脑。终端按 Ctrl+C 停止服务。
+想先体验已完成的聊天、工具与代码编辑，可以直接启动第二课；该课只把 Cua 接入留空。终端按 Ctrl+C 停止服务。
 
 ```bash
 uv run python scripts/check_student.py llm --lesson 1    # 真实 API，会产生费用

@@ -38,12 +38,12 @@ def saved_messages(messages, secret):
 
 
 class Record:
-    def __init__(self, config, backend, task_id, root=Path("runs")):
+    def __init__(self, config, task_id, root=Path("runs")):
         self.id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S") + "-" + uuid.uuid4().hex[:8]
         self.path = root / self.id
         self.secret = config.api_key
         self.data = {"id": self.id, "started_at": datetime.now(timezone.utc).isoformat(),
-                     "model": config.model, "backend": backend, "mode": config.mode,
+                     "model": config.model, "mode": config.mode,
                      "perception": config.perception if config.mode == "computer" else None,
                      "task_id": task_id, "max_rounds": config.max_rounds,
                      "temperature": None, "max_tokens": config.max_tokens,

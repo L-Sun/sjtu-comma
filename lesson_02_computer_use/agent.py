@@ -1,6 +1,6 @@
 """第一课的标准实现，供第二课直接使用。
 
-函数接口与第一课一致，五个辅助函数和 run_turn 循环均已补全。
+函数接口与第一课一致，四个辅助函数和 run_turn 循环均已补全。
 """
 import asyncio
 import json
@@ -8,24 +8,7 @@ import json
 from common.core.types import AgentState, Event, ExercisePending, ModelReply, RunContext, ToolResult
 
 
-# ── 第一课五个函数的标准实现 ──────────────────────────────
-
-
-def add_user_message(messages: list[dict], user_text: str, system_prompt: str) -> None:
-    """已完成：把这一轮用户输入放进历史消息列表。
-
-    messages 是可直接 append 的列表；不要创建一个新列表替换它。
-    空列表：先加入 system 消息，再加入 user 消息。
-    非空列表：保留原有消息，只追加新的 user 消息。
-    每条消息都是 {"role": "...", "content": "..."}，无需返回值。
-
-    例：输入 []、"你好"、"你是助手" 后，messages 应变成：
-    [{"role": "system", "content": "你是助手"},
-     {"role": "user", "content": "你好"}]
-    """
-    if not messages:
-        messages.append({"role": "system", "content": system_prompt})
-    messages.append({"role": "user", "content": user_text})
+# ── 第一课四个函数的标准实现 ──────────────────────────────
 
 
 def remember_assistant_message(messages: list[dict], reply: ModelReply) -> None:
@@ -84,7 +67,9 @@ def make_tool_message(call_id: str, result: ToolResult) -> dict:
 async def run_turn(user_text: str, state: AgentState, context: RunContext) -> None:
     """处理用户的一条消息：问模型 → 执行工具 → 再问模型，直到回答或达到上限。"""
     messages = state.messages
-    add_user_message(messages, user_text, context.system_prompt)  # 准备消息
+    if not messages:
+        messages.append({"role": "system", "content": context.system_prompt})
+    messages.append({"role": "user", "content": user_text})
 
     for step in range(context.config.max_rounds):
         context.emit(Event("status", {"text": f"模型请求 {step + 1}/{context.config.max_rounds}"}))

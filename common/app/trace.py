@@ -101,7 +101,7 @@ def result_summary(name, result):
         outcome = '全部通过，下轮使用我的 Agent' if data['ready'] else short(data.get('detail', '请继续完成作业'), 95)
         edit = data.get('edit')
         prefix = f"Edit {'已接入' if edit['ready'] else str(edit.get('passed', 0)) + '/2'} · Loop " if edit else ''
-        return 'done', f"{prefix}{data.get('passed', 0)}/{data.get('total', 6)} 步通过 · {outcome}"
+        return 'done', f"{prefix}{data.get('passed', 0)}/{data.get('total', 5)} 步通过 · {outcome}"
     if name == 'search_file' and 'matches' in data:
         lines = [str(m['line']) for m in data['matches'] if 'line' in m]
         if not lines:

@@ -26,7 +26,7 @@ async def test_experiment_reset_clears_context_and_restores_prompt(tmp_path, mon
         requests.append([dict(m) for m in messages])
         return ModelReply({'role': 'assistant', 'content': '{"label":"positive","count":3}'})
     monkeypatch.setattr('common.core.llm.complete', complete)
-    async with client_for(tmp_path, 'exercise', lesson=1) as (app, client):
+    async with client_for(tmp_path, fake_io=False, lesson=1) as (app, client):
         sid = 'experiment-1-format'
         initial = (await client.get(f'/api/sessions/{sid}')).json()
         assert (await client.post(f'/api/sessions/{sid}/settings', json={'perception': 'tree'})).status_code == 200

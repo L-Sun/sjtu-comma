@@ -40,7 +40,7 @@ async def test_settings_save_is_private_persistent_and_applies_without_restart(t
     monkeypatch.setenv('OPENROUTER_API_KEY', 'initial-env-key')
     monkeypatch.setenv('OPENROUTER_BASE_URL', Config().base_url)
     config = Config(api_key='previous-key', lesson=1)
-    app = create_app('exercise', config, root=tmp_path/'runs', env_path=tmp_path/'.env')
+    app = create_app(config, root=tmp_path/'runs', env_path=tmp_path/'.env')
     seen = []
 
     async def complete(messages, tools, config):

@@ -13,7 +13,7 @@ from common.core.student_loader import load_student_agent
 from pathlib import Path
 from tests.student_source import unfinished
 
-HELPERS = ['add_user_message', 'remember_assistant_message',
+HELPERS = ['remember_assistant_message',
            'parse_tool_arguments', 'execute_tool', 'make_tool_message']
 
 
@@ -30,18 +30,18 @@ def fill(monkeypatch, count):
         monkeypatch.setattr(student, name, getattr(completed, name))
 
 
-async def test_first_two_helpers_still_need_student_loop(monkeypatch):
-    fill(monkeypatch, 2)
-    with pytest.raises(ExercisePending, match="TODO 1.6"):
+async def test_first_helper_still_needs_student_loop(monkeypatch):
+    fill(monkeypatch, 1)
+    with pytest.raises(ExercisePending, match="TODO 1.5"):
         await check.check_chat(student)
-    with pytest.raises(ExercisePending, match='TODO 1.3'):
+    with pytest.raises(ExercisePending, match='TODO 1.2'):
         student.parse_tool_arguments(check.tool_call())
 
 
-async def test_five_helpers_do_not_unlock_unwritten_loop(monkeypatch):
-    fill(monkeypatch, 5)
+async def test_four_helpers_do_not_unlock_unwritten_loop(monkeypatch):
+    fill(monkeypatch, 4)
     progress = await check.inspect_checks(student)
-    assert progress['passed'] == 5 and progress['total'] == 6 and not progress['ready']
+    assert progress['passed'] == 4 and progress['total'] == 5 and not progress['ready']
     assert next(row for row in progress['checks'] if row['id'] == 'loop')['status'] == 'pending'
 
 
@@ -51,14 +51,14 @@ def fill_loop(monkeypatch):
 
 
 async def test_helpers_and_student_loop_pass_all_checks(monkeypatch):
-    fill(monkeypatch, 5)
+    fill(monkeypatch, 4)
     fill_loop(monkeypatch)
     await check.run_checks(student)
     progress = await check.inspect_checks(student)
-    assert progress['ready'] and progress['passed'] == progress['total'] == 6
+    assert progress['ready'] and progress['passed'] == progress['total'] == 5
 
 
-@pytest.mark.parametrize('filled, missing', [(2, '1.3'), (3, '1.4'), (4, '1.5')])
+@pytest.mark.parametrize('filled, missing', [(1, '1.2'), (2, '1.3'), (3, '1.4')])
 async def test_unfinished_tool_step_stops_instead_of_retrying_model(monkeypatch, filled, missing):
     fill(monkeypatch, filled)
     fill_loop(monkeypatch)
@@ -74,7 +74,7 @@ async def test_unfinished_tool_step_stops_instead_of_retrying_model(monkeypatch,
 
 
 async def test_completed_student_loop_returns_failure_and_propagates_stop(monkeypatch):
-    fill(monkeypatch, 5)
+    fill(monkeypatch, 4)
     fill_loop(monkeypatch)
     requests = []
     async def model(messages, tools, config):
@@ -111,5 +111,19 @@ async def test_loop_checks_reject_common_control_flow_mistakes(before, after):
     assert before in source
     module = load_student_agent(source.replace(before, after), path)
     progress = await check.inspect_checks(module)
-    assert not progress['ready'] and progress['passed'] == 5
+    assert not progress['ready'] and progress['passed'] == 4
     assert next(row for row in progress['checks'] if row['id'] == 'loop')['status'] == 'failed'
+
+
+@pytest.mark.parametrize('before, after', [
+    ('messages = state.messages', 'state.messages.clear()\n    messages = state.messages'),
+    ('if not messages:', 'if True:'),
+    ('"content": user_text', '"content": "固定输入"'),
+])
+async def test_chat_check_still_rejects_broken_message_preparation(before, after):
+    path = Path(completed.__file__)
+    source = path.read_text()
+    assert before in source
+    module = load_student_agent(source.replace(before, after), path)
+    with pytest.raises(AssertionError):
+        await check.check_chat(module)

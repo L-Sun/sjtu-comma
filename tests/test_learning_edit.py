@@ -128,7 +128,7 @@ async def test_chat_uses_connected_edit_to_complete_loop_then_student_takes_over
     original = (course / TARGET).read_text()
     solution = (ROOT / 'lesson_02_computer_use/agent.py').read_text()
     solution += '\n_original = run_turn\nasync def run_turn(text, state, context):\n    context.emit(Event("status", {"text": "EDIT_BUILT_THIS_LOOP"}))\n    await _original(text, state, context)\n'
-    helper = next(node for node in ast.parse(solution).body if isinstance(node, ast.FunctionDef) and node.name == 'add_user_message')
+    helper = next(node for node in ast.parse(solution).body if isinstance(node, ast.FunctionDef) and node.name == 'remember_assistant_message')
     first_helper = ast.get_source_segment(solution, helper)
     partial = original + '\n' + first_helper + '\n'
     requests = []
@@ -152,7 +152,7 @@ async def test_chat_uses_connected_edit_to_complete_loop_then_student_takes_over
         assert step in (5, 9, 11)
         return ModelReply({'role': 'assistant', 'content': '已按实际检查结果完成本步。'})
     monkeypatch.setattr('common.core.llm.complete', complete)
-    app = create_app('exercise', Config(lesson=1, api_key='fake'), root=course / 'runs', lesson_root=course)
+    app = create_app(Config(lesson=1, api_key='fake'), root=course / 'runs', lesson_root=course)
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://127.0.0.1') as client:
             boot = (await client.get('/api/bootstrap')).json()
@@ -179,7 +179,7 @@ async def test_chat_uses_connected_edit_to_complete_loop_then_student_takes_over
             assert last['runner'] == 'teaching_chat'  # no switch halfway through a turn
             assert (course / TARGET).read_text() == solution
             ready = (await client.post('/api/learning/check', json={})).json()
-            assert ready['ready'] and ready['passed'] == 6 and ready['edit']['ready']
+            assert ready['ready'] and ready['passed'] == 5 and ready['edit']['ready']
             student, record = await turn('由刚写好的 Loop 检查自己')
             assert student['runner'] == 'student' and student['source_version'] == ready['version']
             assert 'edit_course_file' in requests[9]

@@ -22,19 +22,6 @@ def context_for(complete=None, execute=None, events=None):
                       "你是课堂助手")
 
 
-async def check_messages(module):
-    messages = []
-    module.add_user_message(messages, "你好", "你是课堂助手")
-    assert messages == [
-        {"role": "system", "content": "你是课堂助手"},
-        {"role": "user", "content": "你好"},
-    ], "空历史应有两条消息：先 system，后 user。请直接修改传入的列表。"
-    messages.append({"role": "assistant", "content": "你好！"})
-    before = deepcopy(messages)
-    module.add_user_message(messages, "还记得我吗", "你是课堂助手")
-    assert messages == before + [{"role": "user", "content": "还记得我吗"}], "新一轮只能追加 user，不能清空历史或重复添加 system。"
-
-
 async def check_reply(module):
     messages = [{"role": "user", "content": "算一下"}]
     reply = ModelReply({"role": "assistant", "content": None, "tool_calls": [tool_call()],
@@ -92,7 +79,12 @@ async def check_chat(module):
     await module.run_turn("第二句话", state, context)
     assert len(snapshots) == 2, "无工具调用时应结束当前回合，不再请求模型。"
     assert [m["role"] for m in snapshots[-1]] == ["system", "user", "assistant", "user"], "第二轮要保留第一轮问答，且 system 只出现一次。"
+    assert snapshots[0] == [
+        {"role": "system", "content": context.system_prompt},
+        {"role": "user", "content": "第一句话"},
+    ], "第一次请求应包含 system 和当前用户输入。"
     assert snapshots[-1][1]["content"] == "第一句话", "第一轮输入丢失了。"
+    assert snapshots[-1][-1] == {"role": "user", "content": "第二句话"}, "每轮应追加当前用户输入。"
     assert len([e for e in events if e.kind == "assistant"]) == 2, "每个回合的回复都应显示在界面。"
 
 
@@ -171,7 +163,7 @@ async def check_loop_stop(module):
 
 
 async def check_loop(module):
-    """Step 6 is the student's control flow, including its stopping conditions."""
+    """Step 5 is the student's control flow, including its stopping conditions."""
     await check_tool_roundtrip(module)
     await check_tool_batch_and_errors(module)
     await check_loop_limit(module)
@@ -179,18 +171,17 @@ async def check_loop(module):
 
 
 CHECKS = {
-    "1": ("准备消息", check_messages),
-    "2": ("保存模型回复", check_reply),
-    "3": ("解析工具参数", check_arguments),
-    "4": ("执行工具", check_execution),
-    "5": ("包装工具结果", check_tool_message),
+    "1": ("保存模型回复", check_reply),
+    "2": ("解析工具参数", check_arguments),
+    "3": ("执行工具", check_execution),
+    "4": ("包装工具结果", check_tool_message),
     "chat": ("无工具退出与多轮历史（run_turn 分支检查）", check_chat),
-    "loop": ("第 6 步 · run_turn（循环、批量工具、错误、上限、停止）", check_loop),
+    "loop": ("第 5 步 · run_turn（循环、批量工具、错误、上限、停止）", check_loop),
 }
 
 
 async def run_checks(module, step="all"):
-    step = "loop" if step == "6" else step
+    step = "loop" if step == "5" else step
     for number in (CHECKS if step == "all" else [step]):
         title, check = CHECKS[number]
         print(f"检查 {number} · {title}")
@@ -214,8 +205,8 @@ async def inspect_checks(module):
     loop_ready = all(row['status'] == 'passed' for row in results if row['id'] in {'chat', 'loop'})
     return {'ready': failed is None,
             'passed': sum(row['status'] == 'passed' for row in results if row['id'].isdigit()) + int(loop_ready),
-            'total': 6, 'checks': results,
-            'detail': failed['detail'] if failed else '五个辅助函数与自己实现的 Agent loop 全部通过。'}
+            'total': 5, 'checks': results,
+            'detail': failed['detail'] if failed else '四个辅助函数与自己实现的 Agent loop 全部通过。'}
 
 
 class QuietOutput:
@@ -228,8 +219,8 @@ class QuietOutput:
 
 def main():
     parser = argparse.ArgumentParser(description="第一课离线检查：不联网、不调用真实模型或电脑。")
-    parser.add_argument("step", nargs="?", default="all", choices=[*CHECKS, "6", "all"],
-                        help="1—5 检查辅助函数；6 或 loop 检查自己写的循环；chat 检查聊天；默认全部")
+    parser.add_argument("step", nargs="?", default="all", choices=[*CHECKS, "5", "all"],
+                        help="1—4 检查辅助函数；5 或 loop 检查自己写的循环；chat 检查聊天；默认全部")
     parser.add_argument('--json', action='store_true', help='输出逐项检查结果，供工作台读取')
     parser.add_argument('--source-stdin', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -242,7 +233,7 @@ def main():
                 module = load_student_agent(source, path)
                 result = asyncio.run(inspect_checks(module))
         except Exception as exc:
-            result = {'ready': False, 'passed': 0, 'total': 6, 'checks': [],
+            result = {'ready': False, 'passed': 0, 'total': 5, 'checks': [],
                       'detail': f'{type(exc).__name__}: {exc}'[:1200]}
         print(json.dumps(result, ensure_ascii=False))
         raise SystemExit(0 if result['ready'] else 1)

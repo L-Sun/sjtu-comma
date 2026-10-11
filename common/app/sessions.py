@@ -38,7 +38,7 @@ class Session:
         self.title = '新对话'
         self.messages = []
         self.trace = TraceState()
-        self.runtime = Runtime(service.backend, root=service.root, lesson=service.config.lesson, learning=service.learning)
+        self.runtime = Runtime(root=service.root, lesson=service.config.lesson, learning=service.learning)
         self.task = None
         self.busy = False
         self.readonly = record is not None
@@ -86,9 +86,9 @@ class Session:
 
 
 class SessionService:
-    def __init__(self, backend, config, root: Path, *, lesson_root=None):
-        self.backend, self.config, self.root = backend, config, root.resolve()
-        self.learning = LearningWorkspace(lesson_root or ROOT) if config.lesson == 1 and backend == "exercise" else None
+    def __init__(self, config, root: Path, *, lesson_root=None):
+        self.config, self.root = config, root.resolve()
+        self.learning = LearningWorkspace(lesson_root or ROOT) if config.lesson == 1 else None
         self.sessions = {}
         self.history = {}
         self.active_id = None

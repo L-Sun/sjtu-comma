@@ -20,13 +20,13 @@ async def test_multiturn_tool_context_and_identity_survive_two_restarts(tmp_path
         return ModelReply({'role': 'assistant', 'content': '记住了',
                            'reasoning_details': [{'type': 'example', 'data': 'provider metadata'}]})
     monkeypatch.setattr('common.core.llm.complete', complete)
-    async with client_for(tmp_path, 'exercise', lesson=1) as (app, client):
+    async with client_for(tmp_path, fake_io=False, lesson=1) as (app, client):
         sid = await create(client)
         first = await finish(app, client, sid, '记住暗号 COMMA_PERSIST')
         second = await finish(app, client, sid, '同一段对话的下一轮')
         expected = deepcopy(app.state.service.get(sid).runtime.state.messages)
         run_ids = [first['run_id'], second['run_id']]
-    async with client_for(tmp_path, 'exercise', lesson=1) as (app, client):
+    async with client_for(tmp_path, fake_io=False, lesson=1) as (app, client):
         rows = [s for s in (await client.get('/api/sessions')).json()['sessions'] if not s.get('experiment')]
         assert len(rows) == 1 and rows[0]['id'] == sid and not rows[0]['readonly']
         restored = (await client.get(f'/api/sessions/{sid}')).json()
@@ -46,12 +46,12 @@ async def test_multiturn_tool_context_and_identity_survive_two_restarts(tmp_path
         # Same opening text must still create a separate conversation.
         other = await create(client)
         await finish(app, client, other, '记住暗号 COMMA_PERSIST')
-    async with client_for(tmp_path, 'exercise', lesson=1) as (_, client):
+    async with client_for(tmp_path, fake_io=False, lesson=1) as (_, client):
         rows = [s for s in (await client.get('/api/sessions')).json()['sessions'] if not s.get('experiment')]
         assert {s['id'] for s in rows} == {sid, other}
         assert len((await client.get(f'/api/sessions/{sid}')).json()['runs']) == 3
         assert (await client.post('/api/sessions/clear-history', json={'keep_id': other})).json()['cleared'] == 1
-    async with client_for(tmp_path, 'exercise', lesson=1) as (_, client):
+    async with client_for(tmp_path, fake_io=False, lesson=1) as (_, client):
         rows = [s for s in (await client.get('/api/sessions')).json()['sessions'] if not s.get('experiment')]
         assert [s['id'] for s in rows] == [other]
 
@@ -63,7 +63,7 @@ async def test_interrupted_context_is_not_sent_back_to_model(tmp_path, monkeypat
         calls.append(deepcopy(messages))
         return ModelReply({'role': 'assistant', 'content': '完成'})
     monkeypatch.setattr('common.core.llm.complete', complete)
-    async with client_for(tmp_path, 'exercise', lesson=1) as (app, client):
+    async with client_for(tmp_path, fake_io=False, lesson=1) as (app, client):
         sid = await create(client)
         snapshot = await finish(app, client, sid, '旧请求')
     path = tmp_path / snapshot['run_id'] / 'run.json'
@@ -72,7 +72,7 @@ async def test_interrupted_context_is_not_sent_back_to_model(tmp_path, monkeypat
     record['model_messages'] = [{'role': 'assistant', 'content': None, 'tool_calls': [
         {'id': 'unmatched', 'type': 'function', 'function': {'name': 'list_files', 'arguments': '{}'}}]}]
     path.write_text(json.dumps(record))
-    async with client_for(tmp_path, 'exercise', lesson=1) as (app, client):
+    async with client_for(tmp_path, fake_io=False, lesson=1) as (app, client):
         restored = (await client.get(f'/api/sessions/{sid}')).json()
         assert not restored['busy'] and not restored['readonly'] and restored['messages']
         assert restored['status'] == ('cancelled' if status == 'running' else status)
@@ -84,7 +84,7 @@ async def test_interrupted_context_is_not_sent_back_to_model(tmp_path, monkeypat
 async def test_legacy_runs_stay_distinct_readonly_and_clearable(tmp_path):
     ids = []
     for text in ['旧轮次一', '旧轮次二']:
-        record = Record(Config(lesson=1), 'exercise', 'free', root=tmp_path)
+        record = Record(Config(lesson=1), 'free', root=tmp_path)
         record.add('user', {'text': text})
         record.add('assistant', {'text': '旧回复'})
         record.data['status'] = 'completed'
@@ -116,7 +116,7 @@ def test_saved_context_redacts_secrets_and_replaces_images_without_mutation():
 
 
 def test_record_save_failure_preserves_previous_checkpoint(tmp_path, monkeypatch):
-    record = Record(Config(), 'exercise', 'free', root=tmp_path)
+    record = Record(Config(), 'free', root=tmp_path)
     path = record.save()
     before = path.read_bytes()
     def fail(*args):
