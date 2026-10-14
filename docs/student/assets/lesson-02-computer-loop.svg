@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
+<title id="title">02  电脑操作需要一个反馈循环</title><desc id="desc">取得观察，模型选择动作，Driver 执行，再观察并核验；未满足目标时根据新状态继续，满足目标后回答。</desc>
+<style>text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#273238}.line{fill:none;stroke:#273238;stroke-width:2}</style>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#273238"/></marker></defs>
+<rect width="1200" height="720" fill="white"/>
+<text x="44" y="51" font-size="30" font-weight="600" text-anchor="start">02  电脑操作需要一个反馈循环</text>
+<text x="44" y="87" font-size="21" font-weight="400" text-anchor="start">输入“等待修改”，再把第二行改成“MCP 接入成功”。</text>
+<rect x="44" y="148" width="242" height="318" rx="24" fill="#FBE7D0" stroke="#273238" stroke-width="1.5"/>
+<text x="165" y="188" font-size="26" font-weight="600" text-anchor="middle">1  观察</text>
+<rect x="60" y="214" width="210" height="132" rx="0" fill="#D3E5F1" stroke="#273238" stroke-width="1.5"/>
+<rect x="334" y="148" width="242" height="318" rx="24" fill="#FBE7D0" stroke="#273238" stroke-width="1.5"/>
+<text x="455" y="188" font-size="26" font-weight="600" text-anchor="middle">2  决定</text>
+<rect x="350" y="214" width="210" height="132" rx="0" fill="#FFF1C9" stroke="#273238" stroke-width="1.5"/>
+<rect x="624" y="148" width="242" height="318" rx="24" fill="#FBE7D0" stroke="#273238" stroke-width="1.5"/>
+<text x="745" y="188" font-size="26" font-weight="600" text-anchor="middle">3  操作</text>
+<rect x="640" y="214" width="210" height="132" rx="0" fill="#DDEAD4" stroke="#273238" stroke-width="1.5"/>
+<rect x="914" y="148" width="242" height="318" rx="24" fill="#FBE7D0" stroke="#273238" stroke-width="1.5"/>
+<text x="1035" y="188" font-size="26" font-weight="600" text-anchor="middle">4  核验</text>
+<rect x="930" y="214" width="210" height="132" rx="0" fill="#E6D6E7" stroke="#273238" stroke-width="1.5"/>
+<text x="165" y="246" font-size="21" font-weight="600" text-anchor="middle">窗口当前的状态</text>
+<text x="165" y="281" font-size="20" font-weight="400" text-anchor="middle">截图 / 控件树</text>
+<text x="165" y="316" font-size="19" font-weight="400" text-anchor="middle">第二行：等待修改</text>
+<text x="455" y="246" font-size="21" font-weight="600" text-anchor="middle">模型结合任务</text>
+<text x="455" y="281" font-size="20" font-weight="400" text-anchor="middle">选择目标与动作</text>
+<text x="455" y="316" font-size="19" font-weight="400" text-anchor="middle">生成工具调用</text>
+<text x="745" y="246" font-size="21" font-weight="600" text-anchor="middle">Driver 执行动作</text>
+<text x="745" y="281" font-size="19" font-weight="400" text-anchor="middle">定位 · 按键 · 输入</text>
+<text x="745" y="316" font-size="19" font-weight="400" text-anchor="middle">应用状态发生变化</text>
+<text x="1035" y="246" font-size="21" font-weight="600" text-anchor="middle">再次观察窗口</text>
+<text x="1035" y="281" font-size="20" font-weight="400" text-anchor="middle">模型对照目标</text>
+<text x="1035" y="316" font-size="19" font-weight="400" text-anchor="middle">三行都正确了吗？</text>
+<text x="165" y="393" font-size="19" font-weight="400" text-anchor="middle">先知道界面是什么样</text>
+<text x="165" y="427" font-size="19" font-weight="400" text-anchor="middle">再选择操作位置</text>
+<text x="455" y="393" font-size="19" font-weight="400" text-anchor="middle">模型提出操作</text>
+<text x="455" y="427" font-size="19" font-weight="400" text-anchor="middle">Python 负责调用</text>
+<text x="745" y="393" font-size="19" font-weight="400" text-anchor="middle">调用返回</text>
+<text x="745" y="427" font-size="19" font-weight="400" text-anchor="middle">不等于任务完成</text>
+<text x="1035" y="393" font-size="19" font-weight="400" text-anchor="middle">修改内容正确</text>
+<text x="1035" y="427" font-size="19" font-weight="400" text-anchor="middle">保留内容也要检查</text>
+<polygon points="290,268 297,268 306,280 297,292 290,292 299,280" fill="#D3E5F1" stroke="#273238" stroke-width="1"/>
+<polygon points="305,268 312,268 321,280 312,292 305,292 314,280" fill="#D3E5F1" stroke="#273238" stroke-width="1"/>
+<polygon points="320,268 327,268 336,280 327,292 320,292 329,280" fill="#D3E5F1" stroke="#273238" stroke-width="1"/>
+<polygon points="580,268 587,268 596,280 587,292 580,292 589,280" fill="#FFF1C9" stroke="#273238" stroke-width="1"/>
+<polygon points="595,268 602,268 611,280 602,292 595,292 604,280" fill="#FFF1C9" stroke="#273238" stroke-width="1"/>
+<polygon points="610,268 617,268 626,280 617,292 610,292 619,280" fill="#FFF1C9" stroke="#273238" stroke-width="1"/>
+<polygon points="870,268 877,268 886,280 877,292 870,292 879,280" fill="#DDEAD4" stroke="#273238" stroke-width="1"/>
+<polygon points="885,268 892,268 901,280 892,292 885,292 894,280" fill="#DDEAD4" stroke="#273238" stroke-width="1"/>
+<polygon points="900,268 907,268 916,280 907,292 900,292 909,280" fill="#DDEAD4" stroke="#273238" stroke-width="1"/>
+<path d="M 991 466 V 550 H 165 V 468" class="line" marker-end="url(#arrow)"/>
+<text x="570" y="535" font-size="22" font-weight="400" text-anchor="middle">未满足目标：根据新的界面状态继续</text>
+<path d="M 1080 466 V 599" class="line" marker-end="url(#arrow)"/>
+<rect x="914" y="602" width="242" height="65" rx="10" fill="#DDEAD4" stroke="#273238" stroke-width="1.5"/>
+<text x="1035" y="642" font-size="22" font-weight="600" text-anchor="middle">满足目标 → 回答</text>
+<text x="44" y="637" font-size="23" font-weight="600" text-anchor="start">最终证据来自操作后的应用。</text>
+<text x="44" y="670" font-size="20" font-weight="400" text-anchor="start">提交时再由学生独立核对文档内容。</text>
+</svg>

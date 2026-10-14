@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" role="img" aria-labelledby="title desc">
+<title id="title">01  把外部工具接到已有的 Agent</title><desc id="desc">MCP 工具发现时从 Driver 返回声明，转换为 ToolSpec；执行时从 Agent 向 Driver 传递名称参数，再把多模态结果送回。</desc>
+<style>text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#273238}.line{fill:none;stroke:#273238;stroke-width:2}</style>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#273238"/></marker></defs>
+<rect width="1200" height="660" fill="white"/>
+<text x="44" y="51" font-size="30" font-weight="600" text-anchor="start">01  把外部工具接到已有的 Agent</text>
+<text x="44" y="87" font-size="21" font-weight="400" text-anchor="start">同一个循环，新增一条连接电脑工具的路径。</text>
+<rect x="44" y="126" width="304" height="384" rx="24" fill="#E8BDB5" stroke="#273238" stroke-width="1.5"/>
+<text x="196" y="164" font-size="26" font-weight="600" text-anchor="middle">Agent</text>
+<text x="196" y="196" font-size="19" font-weight="400" text-anchor="middle">已有的模型与循环</text>
+<rect x="448" y="126" width="304" height="384" rx="24" fill="#FBE7D0" stroke="#273238" stroke-width="1.5"/>
+<text x="600" y="164" font-size="26" font-weight="600" text-anchor="middle">cua.py</text>
+<text x="600" y="196" font-size="19" font-weight="400" text-anchor="middle">本课补全的适配代码</text>
+<rect x="852" y="126" width="304" height="384" rx="24" fill="#FBE7D0" stroke="#273238" stroke-width="1.5"/>
+<text x="1004" y="164" font-size="26" font-weight="600" text-anchor="middle">Cua Driver</text>
+<text x="1004" y="196" font-size="19" font-weight="400" text-anchor="middle">本机 MCP 服务</text>
+<rect x="60" y="220" width="272" height="74" rx="0" fill="#FFF1C9" stroke="#273238" stroke-width="1.5"/>
+<text x="196.0" y="249" font-size="22" font-weight="600" text-anchor="middle">模型可用的工具</text>
+<text x="196.0" y="276" font-size="18" font-weight="400" text-anchor="middle">ToolSpec 列表</text>
+<rect x="464" y="220" width="272" height="74" rx="0" fill="#FFF1C9" stroke="#273238" stroke-width="1.5"/>
+<text x="600.0" y="249" font-size="22" font-weight="600" text-anchor="middle">发现并转换工具</text>
+<text x="600.0" y="276" font-size="18" font-weight="400" text-anchor="middle">list_tools(session)</text>
+<rect x="868" y="220" width="272" height="74" rx="0" fill="#FFF1C9" stroke="#273238" stroke-width="1.5"/>
+<text x="1004.0" y="249" font-size="22" font-weight="600" text-anchor="middle">返回工具说明</text>
+<text x="1004.0" y="276" font-size="18" font-weight="400" text-anchor="middle">名称 · 用途 · 参数 schema</text>
+<rect x="60" y="318" width="272" height="74" rx="0" fill="#DDEAD4" stroke="#273238" stroke-width="1.5"/>
+<text x="196.0" y="347" font-size="22" font-weight="600" text-anchor="middle">模型提出工具调用</text>
+<text x="196.0" y="374" font-size="18" font-weight="400" text-anchor="middle">Python 交给执行函数</text>
+<rect x="464" y="318" width="272" height="74" rx="0" fill="#DDEAD4" stroke="#273238" stroke-width="1.5"/>
+<text x="600.0" y="347" font-size="22" font-weight="600" text-anchor="middle">转发名称与参数</text>
+<text x="600.0" y="374" font-size="18" font-weight="400" text-anchor="middle">call_tool(session, …)</text>
+<rect x="868" y="318" width="272" height="74" rx="0" fill="#DDEAD4" stroke="#273238" stroke-width="1.5"/>
+<text x="1004.0" y="347" font-size="22" font-weight="600" text-anchor="middle">执行电脑操作</text>
+<text x="1004.0" y="374" font-size="18" font-weight="400" text-anchor="middle">观察 · 点击 · 输入</text>
+<rect x="60" y="416" width="272" height="74" rx="0" fill="#D3E5F1" stroke="#273238" stroke-width="1.5"/>
+<text x="196.0" y="445" font-size="22" font-weight="600" text-anchor="middle">结果进入历史</text>
+<text x="196.0" y="472" font-size="18" font-weight="400" text-anchor="middle">模型据此决定下一步</text>
+<rect x="464" y="416" width="272" height="74" rx="0" fill="#D3E5F1" stroke="#273238" stroke-width="1.5"/>
+<text x="600.0" y="445" font-size="22" font-weight="600" text-anchor="middle">完整返回结果字典</text>
+<text x="600.0" y="472" font-size="18" font-weight="400" text-anchor="middle">公共层筛选并处理图片</text>
+<rect x="868" y="416" width="272" height="74" rx="0" fill="#D3E5F1" stroke="#273238" stroke-width="1.5"/>
+<text x="1004.0" y="445" font-size="22" font-weight="600" text-anchor="middle">返回观察与执行结果</text>
+<text x="1004.0" y="472" font-size="18" font-weight="400" text-anchor="middle">文本 · 图片 · 错误</text>
+<polygon points="420,245 413,245 404,257 413,269 420,269 411,257" fill="#FFF1C9" stroke="#273238" stroke-width="1"/>
+<polygon points="405,245 398,245 389,257 398,269 405,269 396,257" fill="#FFF1C9" stroke="#273238" stroke-width="1"/>
+<polygon points="390,245 383,245 374,257 383,269 390,269 381,257" fill="#FFF1C9" stroke="#273238" stroke-width="1"/>
+<text x="397" y="234" font-size="17" font-weight="400" text-anchor="middle">声明</text>
+<polygon points="374,343 381,343 390,355 381,367 374,367 383,355" fill="#DDEAD4" stroke="#273238" stroke-width="1"/>
+<polygon points="389,343 396,343 405,355 396,367 389,367 398,355" fill="#DDEAD4" stroke="#273238" stroke-width="1"/>
+<polygon points="404,343 411,343 420,355 411,367 404,367 413,355" fill="#DDEAD4" stroke="#273238" stroke-width="1"/>
+<text x="397" y="332" font-size="17" font-weight="400" text-anchor="middle">调用</text>
+<polygon points="420,441 413,441 404,453 413,465 420,465 411,453" fill="#D3E5F1" stroke="#273238" stroke-width="1"/>
+<polygon points="405,441 398,441 389,453 398,465 405,465 396,453" fill="#D3E5F1" stroke="#273238" stroke-width="1"/>
+<polygon points="390,441 383,441 374,453 383,465 390,465 381,453" fill="#D3E5F1" stroke="#273238" stroke-width="1"/>
+<text x="397" y="430" font-size="17" font-weight="400" text-anchor="middle">结果</text>
+<polygon points="824,245 817,245 808,257 817,269 824,269 815,257" fill="#FFF1C9" stroke="#273238" stroke-width="1"/>
+<polygon points="809,245 802,245 793,257 802,269 809,269 800,257" fill="#FFF1C9" stroke="#273238" stroke-width="1"/>
+<polygon points="794,245 787,245 778,257 787,269 794,269 785,257" fill="#FFF1C9" stroke="#273238" stroke-width="1"/>
+<text x="801" y="234" font-size="17" font-weight="400" text-anchor="middle">声明</text>
+<polygon points="778,343 785,343 794,355 785,367 778,367 787,355" fill="#DDEAD4" stroke="#273238" stroke-width="1"/>
+<polygon points="793,343 800,343 809,355 800,367 793,367 802,355" fill="#DDEAD4" stroke="#273238" stroke-width="1"/>
+<polygon points="808,343 815,343 824,355 815,367 808,367 817,355" fill="#DDEAD4" stroke="#273238" stroke-width="1"/>
+<text x="801" y="332" font-size="17" font-weight="400" text-anchor="middle">调用</text>
+<polygon points="824,441 817,441 808,453 817,465 824,465 815,453" fill="#D3E5F1" stroke="#273238" stroke-width="1"/>
+<polygon points="809,441 802,441 793,453 802,465 809,465 800,453" fill="#D3E5F1" stroke="#273238" stroke-width="1"/>
+<polygon points="794,441 787,441 778,453 787,465 794,465 785,453" fill="#D3E5F1" stroke="#273238" stroke-width="1"/>
+<text x="801" y="430" font-size="17" font-weight="400" text-anchor="middle">结果</text>
+<rect x="44" y="548" width="1112" height="70" rx="10" fill="#EDF1F2" stroke="#273238" stroke-width="1.5"/>
+<text x="600" y="578" font-size="22" font-weight="400" text-anchor="middle">公共框架已提供 MCP session、观察模式筛选和图片回传。</text>
+<text x="600" y="605" font-size="20" font-weight="400" text-anchor="middle">学生完成两个接入函数，Agent Loop 保持通用。</text>
+</svg>

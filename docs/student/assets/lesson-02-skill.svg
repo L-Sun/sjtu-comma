@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" role="img" aria-labelledby="title desc">
+<title id="title">03  用 Skill 复用做法，用工具执行动作</title><desc id="desc">用户指定 Skill 文件，Agent 用 read_file 读取后把流程与本次目标放入上下文，经 MCP 调用 Cua Driver；Skill 不自动加载，也不直接执行动作。</desc>
+<style>text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#273238}.line{fill:none;stroke:#273238;stroke-width:2}</style>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#273238"/></marker></defs>
+<rect width="1200" height="660" fill="white"/>
+<text x="44" y="51" font-size="30" font-weight="600" text-anchor="start">03  用 Skill 复用做法，用工具执行动作</text>
+<text x="44" y="87" font-size="21" font-weight="400" text-anchor="start">本课采用显式读取：先读流程，再执行一个新的任务。</text>
+<rect x="44" y="142" width="304" height="360" rx="24" fill="#FBE7D0" stroke="#273238" stroke-width="1.5"/>
+<text x="196" y="183" font-size="26" font-weight="600" text-anchor="middle">Skill 文件</text>
+<text x="196" y="216" font-size="19" font-weight="400" text-anchor="middle">保存一类任务的做法</text>
+<rect x="448" y="142" width="304" height="360" rx="24" fill="#E8BDB5" stroke="#273238" stroke-width="1.5"/>
+<text x="600" y="183" font-size="26" font-weight="600" text-anchor="middle">Agent 上下文</text>
+<text x="600" y="216" font-size="19" font-weight="400" text-anchor="middle">结合流程与本次目标</text>
+<rect x="852" y="142" width="304" height="360" rx="24" fill="#FBE7D0" stroke="#273238" stroke-width="1.5"/>
+<text x="1004" y="183" font-size="26" font-weight="600" text-anchor="middle">电脑工具</text>
+<text x="1004" y="216" font-size="19" font-weight="400" text-anchor="middle">把决定变成实际操作</text>
+<rect x="60" y="240" width="272" height="74" rx="0" fill="#FFF1C9" stroke="#273238" stroke-width="1.5"/>
+<text x="196.0" y="269" font-size="22" font-weight="600" text-anchor="middle">名称与适用条件</text>
+<text x="196.0" y="296" font-size="18" font-weight="400" text-anchor="middle">name · description</text>
+<rect x="60" y="314" width="272" height="74" rx="0" fill="#DDEAD4" stroke="#273238" stroke-width="1.5"/>
+<text x="196.0" y="343" font-size="22" font-weight="600" text-anchor="middle">操作步骤</text>
+<text x="196.0" y="370" font-size="18" font-weight="400" text-anchor="middle">观察 · 修改 · 再观察</text>
+<rect x="60" y="388" width="272" height="74" rx="0" fill="#E6D6E7" stroke="#273238" stroke-width="1.5"/>
+<text x="196.0" y="417" font-size="22" font-weight="600" text-anchor="middle">完成标准</text>
+<text x="196.0" y="444" font-size="18" font-weight="400" text-anchor="middle">目标正确，其他内容保留</text>
+<rect x="464" y="240" width="272" height="74" rx="0" fill="#D3E5F1" stroke="#273238" stroke-width="1.5"/>
+<text x="600.0" y="269" font-size="22" font-weight="600" text-anchor="middle">用户指定文件路径</text>
+<text x="600.0" y="296" font-size="18" font-weight="400" text-anchor="middle">用 read_file 读取完整正文</text>
+<rect x="464" y="314" width="272" height="74" rx="0" fill="#FFF1C9" stroke="#273238" stroke-width="1.5"/>
+<text x="600.0" y="343" font-size="22" font-weight="600" text-anchor="middle">本次任务的具体内容</text>
+<text x="600.0" y="370" font-size="18" font-weight="400" text-anchor="middle">把“行动”改成指定文字</text>
+<rect x="464" y="388" width="272" height="74" rx="0" fill="#DDEAD4" stroke="#273238" stroke-width="1.5"/>
+<text x="600.0" y="417" font-size="22" font-weight="600" text-anchor="middle">模型决定下一步</text>
+<text x="600.0" y="444" font-size="18" font-weight="400" text-anchor="middle">选择工具并生成参数</text>
+<rect x="868" y="240" width="272" height="74" rx="0" fill="#DDEAD4" stroke="#273238" stroke-width="1.5"/>
+<text x="1004.0" y="269" font-size="22" font-weight="600" text-anchor="middle">Python 转发调用</text>
+<text x="1004.0" y="296" font-size="18" font-weight="400" text-anchor="middle">MCP → Cua Driver</text>
+<rect x="868" y="314" width="272" height="74" rx="0" fill="#D3E5F1" stroke="#273238" stroke-width="1.5"/>
+<text x="1004.0" y="343" font-size="22" font-weight="600" text-anchor="middle">目标应用</text>
+<text x="1004.0" y="370" font-size="18" font-weight="400" text-anchor="middle">观察 · 点击 · 按键 · 输入</text>
+<rect x="868" y="388" width="272" height="74" rx="0" fill="#E6D6E7" stroke="#273238" stroke-width="1.5"/>
+<text x="1004.0" y="417" font-size="22" font-weight="600" text-anchor="middle">结果与观察回传</text>
+<text x="1004.0" y="444" font-size="18" font-weight="400" text-anchor="middle">供模型核验和继续</text>
+<polygon points="374,270 381,270 390,282 381,294 374,294 383,282" fill="#FFF1C9" stroke="#273238" stroke-width="1"/>
+<polygon points="389,270 396,270 405,282 396,294 389,294 398,282" fill="#FFF1C9" stroke="#273238" stroke-width="1"/>
+<polygon points="404,270 411,270 420,282 411,294 404,294 413,282" fill="#FFF1C9" stroke="#273238" stroke-width="1"/>
+<text x="397" y="258" font-size="17" font-weight="400" text-anchor="middle">读取</text>
+<polygon points="778,270 785,270 794,282 785,294 778,294 787,282" fill="#DDEAD4" stroke="#273238" stroke-width="1"/>
+<polygon points="793,270 800,270 809,282 800,294 793,294 802,282" fill="#DDEAD4" stroke="#273238" stroke-width="1"/>
+<polygon points="808,270 815,270 824,282 815,294 808,294 817,282" fill="#DDEAD4" stroke="#273238" stroke-width="1"/>
+<text x="801" y="258" font-size="17" font-weight="400" text-anchor="middle">调用</text>
+<polygon points="824,413 817,413 808,425 817,437 824,437 815,425" fill="#E6D6E7" stroke="#273238" stroke-width="1"/>
+<polygon points="809,413 802,413 793,425 802,437 809,437 800,425" fill="#E6D6E7" stroke="#273238" stroke-width="1"/>
+<polygon points="794,413 787,413 778,425 787,437 794,437 785,425" fill="#E6D6E7" stroke="#273238" stroke-width="1"/>
+<text x="801" y="402" font-size="17" font-weight="400" text-anchor="middle">反馈</text>
+<rect x="44" y="541" width="1112" height="77" rx="10" fill="#EDF1F2" stroke="#273238" stroke-width="1.5"/>
+<text x="600" y="573" font-size="22" font-weight="400" text-anchor="middle">SKILL.md 提供可复用的流程；本次输入仍由用户给出。</text>
+<text x="600" y="603" font-size="20" font-weight="400" text-anchor="middle">当前框架不自动扫描或加载 Skill，文件也不会自己执行动作。</text>
+</svg>
